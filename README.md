@@ -1,7 +1,7 @@
 # TDF2MZML
 ## Python script to convert Bruker TDF format to MzML
 
-### Tested with TimsTof Pro TDF 2.0 using SDK version 2.8.8
+### Tested with TimsTof Pro TDF 2.0 using SDK version 2.8.7
 
 ### SDK Requirement
 The preffered method to run this application is via docker. Bruker's has allowed us to include the lib and python api (SDK version 2.8.7) in this repo for the purpose of building the docker image. To run the python script outside of docker you will need to obtain the SDK directly from Bruker.

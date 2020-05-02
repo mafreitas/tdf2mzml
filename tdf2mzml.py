@@ -335,7 +335,7 @@ def write_sourcefile_list(mzml_data_struct):
 
     # SourceFile 'analysis.tdf'
     tdf_file_name = 'analysis.tdf'
-    tdf_path = str("./"+mzml_data_struct['input']+"/"+tdf_file_name)
+    tdf_path = os.path.join(mzml_data_struct['input'],tdf_file_name)
     tdf_id = tdf_path.replace('/',"__")
     sf1 = mzml_data_struct['writer'].SourceFile(
         tdf_path, 
@@ -701,9 +701,9 @@ def write_pasef_msms_spectrum(mzml_data_struct):
 
     precursor_info = dict()
     
-    drift_time = mzml_data_struct['td'].scanNumToOneOverK0 (precursor['Parent'], [ precursor['ScanNumber'] ]) [0]
+    ion_mobilitiy = mzml_data_struct['td'].scanNumToOneOverK0 (precursor['Parent'], [ precursor['ScanNumber'] ]) [0]
     precursor_info['params'] = [
-                {"ion mobility drift time": drift_time}
+                {"inverse reduced ion mobility": ion_mobilitiy, 'unit_accession': 'MS:1002814'}
             ]
             
     precursor_info["spectrum_reference"] = mzml_data_struct['current_precursor']['spectrum_id']
@@ -810,7 +810,8 @@ def write_mzml(args):
     logging.info("{} Total Spectra.".format(mzml_data_struct['data_dict']['total_spectra']))
     logging.info("{} MS1 Frames.".format(mzml_data_struct['data_dict']['ms1_spectra_count']))
     logging.info("{} MS2 Merged Scans.".format(mzml_data_struct['data_dict']['ms2_spectra_count']))    
-
+    
+    logging.info("writting to mzML file: {}".format(mzml_data_struct['output']))
     mzml_data_struct['writer'] = MzMLWriter(mzml_data_struct['output'])
     mzml_data_struct['writer'].begin()
     write_header(mzml_data_struct)
@@ -958,9 +959,9 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     args = parser.parse_args()
-    
+
     if args.output == None:
-        args.output = os.path.normpath(re.sub('d$', 'mzml', args.input))
+        args.output = os.path.normpath(re.sub('d[/]?$', 'mzml', args.input))
 
     write_mzml(args)
 

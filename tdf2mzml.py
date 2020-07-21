@@ -441,13 +441,13 @@ def write_software_list(mzml_data_struct):
         } )
 
 ### micrOTOFcontrol Description
-    software_list.append( {
-        "id": acq_softare,
-        "version": acq_softare_version,
-        "params": [
-            {"micrOTOFcontrol": ""}
-        ]
-    } )
+#     software_list.append( {
+#         "id": acq_softare,
+#         "version": acq_softare_version,
+#         "params": [
+#             {"micrOTOFcontrol": ""}
+#         ]
+#     } )
 
 ### python Description
     software_list.append( {

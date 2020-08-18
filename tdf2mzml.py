@@ -255,7 +255,7 @@ def get_spectrum_dict(mzml_data_struct):
     for MMsMsType0_frame in MMsMsType0_frames:
 
         precursor_frame_id = MMsMsType0_frame[0]
-        precursor_frame_rt = MMsMsType0_frame[1]
+        #precursor_frame_rt = MMsMsType0_frame[1]/60.0 
 
         precursor_list = mzml_data_struct['td'].conn.execute(
             "Select Id From Precursors where Parent={}".format(
@@ -615,7 +615,7 @@ def write_precursor_frame(mzml_data_struct):
         ms1_i_array, 
         id=mzml_data_struct['current_precursor']['spectrum_id'], 
         centroided=centroided_flag,
-        scan_start_time=scan_start_time/60.0, 
+        scan_start_time=scan_start_time, 
         scan_window_list=[( mzml_data_struct['data_dict']['mz_acq_range_lower'] , mzml_data_struct['data_dict']['mz_acq_range_upper'] )],
         compression=mzml_data_struct['compression'],
         params=[
@@ -746,7 +746,7 @@ def write_pasef_msms_spectrum(mzml_data_struct):
         ms2_i_array, 
         id=msn_spectrum_id, 
         centroided=True,
-        scan_start_time=mzml_data_struct['current_precursor']['start_time']/60.0, 
+        scan_start_time=mzml_data_struct['current_precursor']['start_time'], 
         scan_window_list=[( 
             mzml_data_struct['data_dict']['mz_acq_range_lower'],
             mzml_data_struct['data_dict']['mz_acq_range_upper'] 
@@ -836,7 +836,7 @@ def write_mzml(args):
                 # Get Precursor Frame ID
                 mzml_data_struct['current_precursor'] = {}
                 mzml_data_struct['current_precursor']['id'] = precursor_frame[0]
-                mzml_data_struct['current_precursor']['start_time'] = precursor_frame[1]
+                mzml_data_struct['current_precursor']['start_time'] = precursor_frame[1]/60.0
                
                 if mzml_data_struct['current_precursor']['id'] < mzml_data_struct['start_frame'] or mzml_data_struct['current_precursor']['id'] > mzml_data_struct['end_frame']:
                     continue

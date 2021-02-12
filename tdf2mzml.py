@@ -236,6 +236,10 @@ def get_spectrum_dict(mzml_data_struct):
             "Select Value from GlobalMetadata where key=\"AcquisitionSoftwareVersion\""
         ).fetchone()[0]
 
+    spectrum_dict['acq_date_time'] = mzml_data_struct['td'].conn.execute(
+            "Select Value from GlobalMetadata where key=\"AcquisitionDateTime\""
+        ).fetchone()[0]
+
     spectrum_dict['mz_acq_range_lower'] = mzml_data_struct['td'].conn.execute(
             "Select Value from GlobalMetadata where key=\"MzAcqRangeLower\""
         ).fetchone()[0]
@@ -821,7 +825,7 @@ def write_mzml(args):
     logging.info("Processing {} Spectra.".format(total_spectra_count))
     logging.info("Reading, Merging and Formating Frames for mzML")
     
-    with mzml_data_struct['writer'].run(id=1, instrument_configuration='IC1'):
+    with mzml_data_struct['writer'].run(id=1, instrument_configuration='IC1', start_time=mzml_data_struct['data_dict']['acq_date_time']):
         with mzml_data_struct['writer'].spectrum_list(count=total_spectra_count):
             # Process Frames
             mzml_data_struct['scan_loop_time1'] = time.time()

@@ -211,7 +211,7 @@ def get_spectrum_dict(mzml_data_struct):
     """
     Get mzml spectrum information
 
-    Function scans the raw dataf file and build the data file dictionary
+    Function scans the raw data file and build the data file dictionary
 
     Parameters
     ----------
@@ -259,7 +259,7 @@ def get_spectrum_dict(mzml_data_struct):
     for MMsMsType0_frame in MMsMsType0_frames:
 
         precursor_frame_id = MMsMsType0_frame[0]
-        precursor_frame_rt = MMsMsType0_frame[1]
+        #precursor_frame_rt = MMsMsType0_frame[1]
 
         precursor_list = mzml_data_struct['td'].conn.execute(
             "Select Id From Precursors where Parent={}".format(
@@ -583,7 +583,7 @@ def write_precursor_frame(mzml_data_struct):
     None
     """  
     precursor_frame_id = mzml_data_struct['current_precursor']['id'] 
-    scan_start_time = mzml_data_struct['current_precursor']['start_time'] 
+    scan_start_time = mzml_data_struct['current_precursor']['start_time']
     # Process only frames in frame range
     
     # build merged array of m/z and intensities
@@ -686,7 +686,7 @@ def write_pasef_msms_spectrum(mzml_data_struct):
 
     # Set Precuror metadata
     # TODO add additional metada
-    # TODO calrify correct m/z for precursor to use for Isolation Width
+    # TODO clarify correct m/z for precursor to use for Isolation Width
         
     msn_spectrum_id = "index={}".format(mzml_data_struct['scan_index'])
 
@@ -840,7 +840,7 @@ def write_mzml(args):
                 # Get Precursor Frame ID
                 mzml_data_struct['current_precursor'] = {}
                 mzml_data_struct['current_precursor']['id'] = precursor_frame[0]
-                mzml_data_struct['current_precursor']['start_time'] = precursor_frame[1]
+                mzml_data_struct['current_precursor']['start_time'] = precursor_frame[1]/60
                
                 if mzml_data_struct['current_precursor']['id'] < mzml_data_struct['start_frame'] or mzml_data_struct['current_precursor']['id'] > mzml_data_struct['end_frame']:
                     continue

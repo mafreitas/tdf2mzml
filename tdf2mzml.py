@@ -220,7 +220,8 @@ def get_spectrum_dict(mzml_data_struct):
 
     Returns
     -------
-    None
+    dict: 
+        spectrum dictionary
     """ 
     spectrum_dict = collections.OrderedDict()
 
@@ -288,7 +289,8 @@ def get_num_spectra(mzml_data_struct):
 
     Returns
     -------
-    None
+    int:
+        spectrum count
     """ 
     total_spectrum_count = 0
 

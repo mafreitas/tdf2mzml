@@ -2,3 +2,5 @@ example/
 __pycache__
 *.mzml
 pythonenv3.8
+**.zip
+test/

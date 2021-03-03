@@ -28,7 +28,7 @@ A Dockerfile is also provided to assist with building and running the utility in
 ### To use docker to convert a tdf file. 
 
 ```
-docker run --rm -it -v $PWD:/data mfreitas/tdf2zml tdf2mzml.py -i /data/your_folder.d 
+docker run --rm -it -v $PWD:/data mfreitas/tdf2mzml tdf2mzml.py -i /data/your_folder.d 
 ```
 This command will create a new MzML file in the same folder as the tdf directory.
 
@@ -40,6 +40,6 @@ docker build -t tdf2mzml .
 ### To run the docker image
 
 ```
-docker run --rm -it -v $PWD:/data tdf2mzml.py -i /data/your_folder.d 
+docker run --rm -it -v $PWD:/data tdf2mzml tdf2mzml.py -i /data/your_folder.d 
 ```
 

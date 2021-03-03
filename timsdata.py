@@ -9,7 +9,7 @@ from ctypes import *
 if sys.platform[:5] == "win32":
     libname = "timsdata.dll"
 elif sys.platform[:5] == "linux":
-    libname = "./libtimsdata.so"
+    libname = "libtimsdata.so"
 else:
     raise Exception("Unsupported platform.")
     

@@ -8,6 +8,7 @@ LABEL maintainer="mike.freitas@gmail.com"
 LABEL dockerhub="mfreitas/tdf2mzml"
 
 ENV PATH /tdf2mzml:$PATH
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/tdf2mzml
 
 ADD requirements.txt /tdf2mzml/requirements.txt
 ADD tdf2mzml.py /tdf2mzml/tdf2mzml.py 

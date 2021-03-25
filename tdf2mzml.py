@@ -615,6 +615,7 @@ def write_precursor_frame(mzml_data_struct):
     else:
         #TODO fix handling for sparce MS1/MS2 data the following is a crude fixe
         base_peak_intensity = total_ion_intensity = 0.0
+        base_peak_mz = 0.0
         
     mzml_data_struct['writer'].write_spectrum(
         ms1_mz_array, 

@@ -241,6 +241,10 @@ def get_spectrum_dict(mzml_data_struct):
             "Select Value from GlobalMetadata where key=\"AcquisitionDateTime\""
         ).fetchone()[0]
 
+    spectrum_dict['instrument_serial_number'] = mzml_data_struct['td'].conn.execute(
+            "Select Value from GlobalMetadata where key=\"InstrumentSerialNumber\""
+        ).fetchone()[0]
+
     spectrum_dict['mz_acq_range_lower'] = mzml_data_struct['td'].conn.execute(
             "Select Value from GlobalMetadata where key=\"MzAcqRangeLower\""
         ).fetchone()[0]
@@ -487,6 +491,7 @@ def write_instrument_configuration_list(mzml_data_struct):
     source = mzml_data_struct['writer'].Source(1, ["nanospray inlet", "quadrupole"])
     analyzer = mzml_data_struct['writer'].Analyzer(2, ["time-of-flight"])
     detector = mzml_data_struct['writer'].Detector(3, ["microchannel plate detector","photomultiplier"])
+    serial_number = mzml_data_struct['data_dict']['instrument_serial_number']
     
     instrument_configurations.append(
         mzml_data_struct['writer'].InstrumentConfiguration(
@@ -497,7 +502,7 @@ def write_instrument_configuration_list(mzml_data_struct):
                 detector
             ],
             params=[
-                {"instrument serial number": "1854399.86"}
+                {"instrument serial number": serial_number}
             ]
         )
     )

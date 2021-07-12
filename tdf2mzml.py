@@ -207,7 +207,7 @@ def raw_precursor_frame(mzml_data_struct):
     return list( zip(*raw_position_dict.items()) )
 
 
-def get_spectrum_dict(mzml_data_struct):
+def get_spectrum_dict(mzml_data_struct, precursor_table_exists):
     """
     Get mzml spectrum information
 
@@ -261,25 +261,26 @@ def get_spectrum_dict(mzml_data_struct):
     #Get Frames from TDF
     MMsMsType0_frames = mzml_data_struct['td'].conn.execute("SELECT Id , Time From Frames where MsMsType=0").fetchall()
 
-    for MMsMsType0_frame in MMsMsType0_frames:
+    if precursor_table_exists:
+        for MMsMsType0_frame in MMsMsType0_frames:
 
-        precursor_frame_id = MMsMsType0_frame[0]
-        #precursor_frame_rt = MMsMsType0_frame[1]
+            precursor_frame_id = MMsMsType0_frame[0]
+            #precursor_frame_rt = MMsMsType0_frame[1]
 
-        precursor_list = mzml_data_struct['td'].conn.execute(
-            "Select Id From Precursors where Parent={}".format(
-                precursor_frame_id)
-            ).fetchall()
-        total_spectrum_count += len(precursor_list) +1
-    
+            precursor_list = mzml_data_struct['td'].conn.execute(
+                "Select Id From Precursors where Parent={}".format(
+                    precursor_frame_id)
+                ).fetchall()
+            total_spectrum_count += len(precursor_list) +1
+
     spectrum_dict['total_spectra'] = total_spectrum_count
     spectrum_dict['ms1_spectra_count'] = len(MMsMsType0_frames)
     spectrum_dict['ms2_spectra_count'] = total_spectrum_count - len(MMsMsType0_frames)
-    
+
     return spectrum_dict
 
 
-def get_num_spectra(mzml_data_struct):
+def get_num_spectra(mzml_data_struct, precursor_table_exists):
     """
     Get the number of spectra for the conversion
 
@@ -314,14 +315,15 @@ def get_num_spectra(mzml_data_struct):
 
         total_spectrum_count +=1
 
-        #Get number of MS2 Spectra for each precuros in a give Frame
-        ms2_spectra = mzml_data_struct['td'].conn.execute(
-                            "Select * From Precursors where Parent={}"
-                            .format(frame_id)
-                            ).fetchall()
+        if precursor_table_exists:
+            #Get number of MS2 Spectra for each precuros in a give Frame
+            ms2_spectra = mzml_data_struct['td'].conn.execute(
+                                "Select * From Precursors where Parent={}"
+                                .format(frame_id)
+                                ).fetchall()
 
-        if len(ms2_spectra) >= 1: 
-            total_spectrum_count += len(ms2_spectra)
+            if len(ms2_spectra) >= 1: 
+                total_spectrum_count += len(ms2_spectra)
 
     return total_spectrum_count
 
@@ -816,7 +818,14 @@ def write_mzml(args):
     logging.info("transforming TDF to mzML file: {}".format(mzml_data_struct['input']))
 
     mzml_data_struct['td'] = timsdata.TimsData(mzml_data_struct['input'])
-    mzml_data_struct['data_dict'] = get_spectrum_dict(mzml_data_struct)
+
+    ### If DIA method there is no precursor table
+    if mzml_data_struct['td'].conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Precursors'").fetchone():
+        precursor_table_exists = True
+    else:
+        precursor_table_exists = False
+
+    mzml_data_struct['data_dict'] = get_spectrum_dict(mzml_data_struct, precursor_table_exists)
 
     logging.info("{} Total Frames.".format(mzml_data_struct['data_dict']['frame_count']))
     logging.info("{} Total Spectra.".format(mzml_data_struct['data_dict']['total_spectra']))
@@ -829,7 +838,7 @@ def write_mzml(args):
     write_header(mzml_data_struct)
 
     # Get Spectra number in specified range
-    total_spectra_count = get_num_spectra(mzml_data_struct)
+    total_spectra_count = get_num_spectra(mzml_data_struct, precursor_table_exists)
     logging.info("Processing {} Spectra.".format(total_spectra_count))
     logging.info("Reading, Merging and Formating Frames for mzML")
     
@@ -857,12 +866,13 @@ def write_mzml(args):
 
                 logging.debug(mzml_data_struct['scan_index'])
                 scan_progress(mzml_data_struct)
-                
-                for precursor_data in get_precursor_list(mzml_data_struct):
-                    mzml_data_struct['current_precursor']['data'] = precursor_data
-                    write_pasef_msms_spectrum(mzml_data_struct)
-        
-                    scan_progress(mzml_data_struct)
+
+                if precursor_table_exists:                
+                    for precursor_data in get_precursor_list(mzml_data_struct):
+                        mzml_data_struct['current_precursor']['data'] = precursor_data
+                        write_pasef_msms_spectrum(mzml_data_struct)
+            
+                        scan_progress(mzml_data_struct)
 
     logging.info("Writing final mzML")
     mzml_data_struct['writer'].end()

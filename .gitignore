@@ -5,3 +5,4 @@ pythonenv3.8
 **.zip
 **.d
 test/
+**.DS_Store

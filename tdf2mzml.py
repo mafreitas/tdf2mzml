@@ -42,6 +42,7 @@ precursor_columns = [
             "Parent"
         ]
 
+
 def timing(f):
     """
     Helper function for timing other functions
@@ -258,23 +259,53 @@ def get_spectrum_dict(mzml_data_struct):
     MSMS_frame_list = list()
     total_spectrum_count = 0
 
-    #Get Frames from TDF
-    MMsMsType0_frames = mzml_data_struct['td'].conn.execute("SELECT Id , Time From Frames where MsMsType=0").fetchall()
+    #Get MS1 MMsMsType0 Frames from TDF
+    MMsMsType0_frames = len(mzml_data_struct['td'].conn.execute("SELECT Id , Time From Frames where MsMsType=0").fetchall())
+    logging.debug("number of type 0 frames: {}".format(MMsMsType0_frames))
 
-    for MMsMsType0_frame in MMsMsType0_frames:
-
-        precursor_frame_id = MMsMsType0_frame[0]
-        #precursor_frame_rt = MMsMsType0_frame[1]
-
-        precursor_list = mzml_data_struct['td'].conn.execute(
-            "Select Id From Precursors where Parent={}".format(
-                precursor_frame_id)
-            ).fetchall()
-        total_spectrum_count += len(precursor_list) +1
+    MMsMsType0_spectra = MMsMsType0_frames
     
-    spectrum_dict['total_spectra'] = total_spectrum_count
-    spectrum_dict['ms1_spectra_count'] = len(MMsMsType0_frames)
-    spectrum_dict['ms2_spectra_count'] = total_spectrum_count - len(MMsMsType0_frames)
+    #Get MS1 MMsMsType0 Frames from TDF
+    MMsMsType8_frames = len(mzml_data_struct['td'].conn.execute("SELECT Id , Time From Frames where MsMsType=8").fetchall())
+    logging.debug("number of type 8 frames: {}".format(MMsMsType8_frames))
+    
+    if MMsMsType8_frames > 0:
+        MMsMsType8_spectra = mzml_data_struct['td'].conn.execute("SELECT COUNT(*) FROM Precursors").fetchone()[0]
+        logging.debug("number of type 8 spectra: {}".format(MMsMsType8_spectra))
+        
+        spectrum_dict['PASEFMSMS_type8'] = 1            
+        # for MMsMsType0_frame in MMsMsType0_frames:
+
+        #     precursor_frame_id = MMsMsType0_frame[0]
+        #     #precursor_frame_rt = MMsMsType0_frame[1]
+
+        #     precursor_list = mzml_data_struct['td'].conn.execute(
+        #         "Select Id From Precursors where Parent={}".format(
+        #             precursor_frame_id)
+        #         ).fetchall()
+        #     total_spectrum_count += len(precursor_list) +1
+        #logging.debug("number spectra: {}".format(total_spectrum_count))
+    else:
+        MMsMsType8_spectra = 0
+        spectrum_dict['PASEFMSMS_type8'] = 0      
+    
+        
+    #Get MS9 MMsMsType9 Frames from TDF
+    MMsMsType9_frames = len(mzml_data_struct['td'].conn.execute("SELECT Id , Time From Frames where MsMsType=9").fetchall())
+    logging.debug("number of type 9 frames: {}".format(MMsMsType9_frames))
+    
+    if MMsMsType9_frames > 0:
+        MMsMsType9_spectra = MMsMsType9_frames
+        spectrum_dict['PASEFMSMS_type9'] = 1  
+    else:
+        MMsMsType9_spectra = 0
+        spectrum_dict['PASEFMSMS_type9'] = 0      
+           
+    #spectrum_dict['total_spectra'] = total_spectrum_count
+    spectrum_dict['total_spectra'] = MMsMsType0_spectra + MMsMsType8_spectra + MMsMsType9_frames
+    spectrum_dict['ms1_spectra_count'] = MMsMsType0_spectra
+    spectrum_dict['ms2_spectra_count'] = MMsMsType8_spectra 
+    spectrum_dict['dia_spectra_count'] = MMsMsType9_spectra
     
     return spectrum_dict
 
@@ -493,6 +524,28 @@ def write_instrument_configuration_list(mzml_data_struct):
     detector = mzml_data_struct['writer'].Detector(3, ["microchannel plate detector","photomultiplier"])
     serial_number = mzml_data_struct['data_dict']['instrument_serial_number']
     
+    instparams=[
+        {"instrument serial number": serial_number}
+    ]
+       
+    if mzml_data_struct['data_dict']['PASEFMSMS_type9'] == 1:
+
+        windows = mzml_data_struct['td'].conn.execute("SELECT * From DiaFrameMsMsWindows").fetchall()                 
+        for window in windows:
+
+            instparams.append( 
+                {"dia_window": {
+                        'Group': window[0],
+                        'mz_center': window[3],
+                        'width': window[4],
+                        'energy': window[5]
+                        }
+                    }
+                )
+
+                
+    
+                        
     instrument_configurations.append(
         mzml_data_struct['writer'].InstrumentConfiguration(
             id="IC1", 
@@ -501,9 +554,7 @@ def write_instrument_configuration_list(mzml_data_struct):
                 analyzer, 
                 detector
             ],
-            params=[
-                {"instrument serial number": serial_number}
-            ]
+            params=instparams
         )
     )
 
@@ -775,6 +826,87 @@ def write_pasef_msms_spectrum(mzml_data_struct):
 
     return
 
+
+def write_pasef_dia_spectrum(mzml_data_struct):
+    """
+    Writes a PASEF MSMS spectrum
+
+    takes data from the mzml_data_struct to format and write the spectrum
+
+    Parameters
+    ----------
+    mzml_data_struct : dict
+        structure of the mzml data
+
+    Returns
+    -------
+    None
+    """       
+    logging.debug("precursor \n{}".format(mzml_data_struct['current_precursor']))     
+    logging.debug("dia\n{}".format(mzml_data_struct['current_dia_frame']) )   
+    
+    frame_id = mzml_data_struct['current_dia_frame']['id']
+    start_scan = mzml_data_struct['current_dia_frame']['current_window'][1]
+    end_scan = mzml_data_struct['current_dia_frame']['current_window'][2]
+    mz_center =  mzml_data_struct['current_dia_frame']['current_window'][3]
+    mz_width =  mzml_data_struct['current_dia_frame']['current_window'][4]
+    collision_energy =  mzml_data_struct['current_dia_frame']['current_window'][5]
+    #logging.debug(frame_id, start_scan, end_scan)
+    
+    result = mzml_data_struct['td'].extractCentroidedSpectrumForFrame( frame_id, start_scan, end_scan)
+
+    ms2_mz_array = np.asarray(result[0])
+    ms2_i_array = np.asarray(result[1])
+    
+    logging.debug("{}\n{}".format(ms2_mz_array,ms2_i_array))
+    logging.debug(mzml_data_struct['scan_index'])
+    msn_spectrum_id = "index={}".format(mzml_data_struct['scan_index'])
+    logging.debug(mzml_data_struct['scan_index'])
+
+    precursor_info = dict()
+    precursor_info["mz"] = mz_center        
+    precursor_info["spectrum_reference"] = mzml_data_struct['current_precursor']['spectrum_id']
+
+    # # TODO find the correct metadata and apply it here properly
+    precursor_info["activation"] = [
+            "CID", 
+            {"collision energy": collision_energy}
+            ]
+
+    precursor_info["isolation_window_args"] = dict()
+    
+    precursor_info["mz"] = mz_center
+    precursor_info["isolation_window_args"]["target"] = mz_center
+
+    isolation_width = mz_width/2.0
+
+    precursor_info["isolation_window_args"]["lower"] = isolation_width
+    precursor_info["isolation_window_args"]["upper"] = isolation_width
+
+
+    mzml_data_struct['writer'].write_spectrum(
+        ms2_mz_array, 
+        ms2_i_array, 
+        id=msn_spectrum_id, 
+        centroided=True,
+        scan_start_time=mzml_data_struct['current_dia_frame']['frame'][1]/60, 
+        scan_window_list=[( 
+            mz_center-mz_width/2.0,
+            mz_center+mz_width/2.0, 
+        )],
+        compression=mzml_data_struct['compression'],
+        #precursor_information=precursor_info,
+        params=[
+            {"ms level": 2}, 
+            {"total ion current": ms2_i_array.sum()}
+        ]
+    )
+
+    mzml_data_struct['scan_index'] += 1
+
+    return
+
+
 def process_arg(args):
     """
     Convert namespace args objet to dictionary.
@@ -820,8 +952,9 @@ def write_mzml(args):
 
     logging.info("{} Total Frames.".format(mzml_data_struct['data_dict']['frame_count']))
     logging.info("{} Total Spectra.".format(mzml_data_struct['data_dict']['total_spectra']))
-    logging.info("{} MS1 Frames.".format(mzml_data_struct['data_dict']['ms1_spectra_count']))
-    logging.info("{} MS2 Merged Scans.".format(mzml_data_struct['data_dict']['ms2_spectra_count']))    
+    logging.info("{} MS1 Spectra.".format(mzml_data_struct['data_dict']['ms1_spectra_count']))
+    logging.info("{} MS2 DDA Scans.".format(mzml_data_struct['data_dict']['ms2_spectra_count']))    
+    logging.info("{} MS2 DIA Scans.".format(mzml_data_struct['data_dict']['dia_spectra_count']))    
     
     logging.info("writting to mzML file: {}".format(mzml_data_struct['output']))
     mzml_data_struct['writer'] = MzMLWriter(mzml_data_struct['output'])
@@ -829,7 +962,8 @@ def write_mzml(args):
     write_header(mzml_data_struct)
 
     # Get Spectra number in specified range
-    total_spectra_count = get_num_spectra(mzml_data_struct)
+    #total_spectra_count = get_num_spectra(mzml_data_struct)
+    total_spectra_count = mzml_data_struct['data_dict']['total_spectra']
     logging.info("Processing {} Spectra.".format(total_spectra_count))
     logging.info("Reading, Merging and Formating Frames for mzML")
     
@@ -839,30 +973,162 @@ def write_mzml(args):
             mzml_data_struct['scan_loop_time1'] = time.time()
             mzml_data_struct['scan_index'] = 1
 
-            mzml_data_struct['precursor_frames'] = mzml_data_struct['td'].conn.execute("SELECT * From Frames where MsMsType=0").fetchall()
-            # Check upper frame range
-            if mzml_data_struct['end_frame'] == -1 or mzml_data_struct['end_frame'] > mzml_data_struct['data_dict']['frame_count']:
-                mzml_data_struct['end_frame'] = mzml_data_struct['data_dict']['frame_count']
+            if mzml_data_struct['data_dict']['PASEFMSMS_type8'] == 1:
+                    
+                mzml_data_struct['precursor_frames'] = mzml_data_struct['td'].conn.execute("SELECT * From Frames where MsMsType=0").fetchall()
+                # Check upper frame range
+                if mzml_data_struct['end_frame'] == -1 or mzml_data_struct['end_frame'] > mzml_data_struct['data_dict']['frame_count']:
+                    mzml_data_struct['end_frame'] = mzml_data_struct['data_dict']['frame_count']
+                    
+                for precursor_frame in mzml_data_struct['precursor_frames']:
+                    # Get Precursor Frame ID
+                    mzml_data_struct['current_precursor'] = {}
+                    mzml_data_struct['current_precursor']['id'] = precursor_frame[0]
+                    mzml_data_struct['current_precursor']['start_time'] = precursor_frame[1]/60
                 
-            for precursor_frame in mzml_data_struct['precursor_frames']:
-                # Get Precursor Frame ID
-                mzml_data_struct['current_precursor'] = {}
-                mzml_data_struct['current_precursor']['id'] = precursor_frame[0]
-                mzml_data_struct['current_precursor']['start_time'] = precursor_frame[1]/60
-               
-                if mzml_data_struct['current_precursor']['id'] < mzml_data_struct['start_frame'] or mzml_data_struct['current_precursor']['id'] > mzml_data_struct['end_frame']:
-                    continue
+                    if mzml_data_struct['current_precursor']['id'] < mzml_data_struct['start_frame'] or mzml_data_struct['current_precursor']['id'] > mzml_data_struct['end_frame']:
+                        continue
 
-                write_precursor_frame(mzml_data_struct)
+                    write_precursor_frame(mzml_data_struct)
 
-                logging.debug(mzml_data_struct['scan_index'])
-                scan_progress(mzml_data_struct)
-                
-                for precursor_data in get_precursor_list(mzml_data_struct):
-                    mzml_data_struct['current_precursor']['data'] = precursor_data
-                    write_pasef_msms_spectrum(mzml_data_struct)
-        
+                    #logging.debug(mzml_data_struct['scan_index'])
                     scan_progress(mzml_data_struct)
+                    
+                    for precursor_data in get_precursor_list(mzml_data_struct):
+                        mzml_data_struct['current_precursor']['data'] = precursor_data
+                        write_pasef_msms_spectrum(mzml_data_struct)
+            
+                        scan_progress(mzml_data_struct)
+            
+            elif mzml_data_struct['data_dict']['PASEFMSMS_type9'] == 1:
+                
+                mzml_data_struct['precursor_frames'] = mzml_data_struct['td'].conn.execute("SELECT * From Frames where MsMsType=0").fetchall()
+                mzml_data_struct['dia_frames'] = mzml_data_struct['td'].conn.execute("SELECT * From Frames where MsMsType=9").fetchall()
+                mzml_frames = mzml_data_struct['td'].conn.execute("SELECT * From Frames").fetchall()
+                # Check upper frame range
+                if mzml_data_struct['end_frame'] == -1 or mzml_data_struct['end_frame'] > mzml_data_struct['data_dict']['frame_count']:
+                    mzml_data_struct['end_frame'] = mzml_data_struct['data_dict']['frame_count']
+                
+                for frame in mzml_frames:
+                #for precursor_frame in mzml_data_struct['precursor_frames']:
+                    # Get Precursor Frame ID
+                    
+                    if frame[4] == 0:
+                        
+                        # if mzml_data_struct['current_precursor']['id'] < mzml_data_struct['start_frame'] or mzml_data_struct['current_precursor']['id'] > mzml_data_struct['end_frame']:
+                        #     continue
+                        
+                        mzml_data_struct['current_precursor'] = {}
+                        mzml_data_struct['current_precursor']['id'] = frame[0]
+                        mzml_data_struct['current_precursor']['start_time'] = frame[1]/60
+                
+                        write_precursor_frame(mzml_data_struct)
+
+                        #logging.debug(mzml_data_struct['scan_index'])
+                        scan_progress(mzml_data_struct)
+                    
+                    elif frame[4] == 9:
+                        window_group = mzml_data_struct['td'].conn.execute("SELECT WindowGroup From DiaFrameMsMsInfo where Frame={}".format(frame[0])).fetchone()[0]
+                        logging.debug( window_group )
+                        windows = mzml_data_struct['td'].conn.execute("SELECT * From DiaFrameMsMsWindows where WindowGroup={}".format(window_group)).fetchall()
+                        logging.debug( windows )
+                        
+                        mzml_data_struct['current_dia_frame'] = {}
+                        mzml_data_struct['current_dia_frame']['frame'] = frame
+                        mzml_data_struct['current_dia_frame']['id'] = frame[0]
+                        mzml_data_struct['current_dia_frame']['start_time'] = frame[1]/60
+                        mzml_data_struct['current_dia_frame']['window_group'] = window_group
+                        mzml_data_struct['current_dia_frame']['windows'] = windows
+                        
+                        for window in windows:
+                            mzml_data_struct['current_dia_frame']['current_window'] = window
+ 
+                            write_pasef_dia_spectrum(mzml_data_struct)
+                            scan_progress(mzml_data_struct)
+            
+                #            logging.debug(window)
+                #             #print(frame[0], window[1], window[2])
+                #             # print(frame[0], list(range(window[1], window[2])))
+                #             # result = mzml_data_struct['td'].extractProfileForFrame( frame[0], window[1], window[2])
+                #             # ms2_mz_array = np.asarray(result[0])
+                #             # ms2_i_array = np.asarray(result[1])
+                #             # m_array = np.asarray(
+                #             #     mzml_data_struct['td'].indexToMz(frame[0], list(range(window[1], window[2])))
+                #             # )
+    
+                #             # result2 = np.asarray(result)
+                #             # print(  result2[np.argsort(result2)[-5:]])
+                #             # print( m_array )
+                            
+                #             result = mzml_data_struct['td'].extractCentroidedSpectrumForFrame( frame[0], window[1], window[2])
+                #             #print(result)
+                #             ms2_mz_array = np.asarray(result[0])
+                #             ms2_i_array = np.asarray(result[1])
+                            
+                #             msn_spectrum_id = "index={}".format(mzml_data_struct['scan_index'])
+
+                #             # parent_frame_string = "mz={}_width={} ".format(window[3],window[4])
+                                    
+                #             # precursor_info["spectrum_reference"] = mzml_data_struct['current_precursor']['spectrum_id']
+
+                #             # # TODO find the correct metadata and apply it here properly
+                #             # precursor_info["activation"] = [
+                #             #         "CID", 
+                #             #         {"collision energy": pasef_frame["CollisionEnergy"]}
+                #             #         ]
+
+                #             # precursor_info["isolation_window_args"] = dict()
+                            
+                #             # if precursor['Charge'] != None:
+                #             #     precursor_mz = precursor['MonoisotopicMz']
+                #             #     precursor_info["mz"] = precursor_mz
+                #             #     precursor_info["isolation_window_args"]["target"] = precursor_mz
+
+                #             #     isolation_offset = pasef_frame["IsolationMz"] - precursor_mz
+                #             #     isolation_width = pasef_frame["IsolationWidth"]/2.0
+
+                #             #     precursor_info["isolation_window_args"]["lower"] = isolation_width - isolation_offset
+                #             #     precursor_info["isolation_window_args"]["upper"] = isolation_width + isolation_offset
+
+                #             #     precursor_info["charge"]  = precursor['Charge']
+                #             # else:
+                #             #     precursor_mz = precursor['LargestPeakMz']
+                #             #     precursor_info["mz"] = precursor_mz
+                #             #     precursor_info["isolation_window_args"]["target"] = precursor_mz
+
+                #             #     isolation_offset = pasef_frame["IsolationMz"] - precursor_mz
+                #             #     isolation_width = pasef_frame["IsolationWidth"]/2.0
+
+                #             #     precursor_info["isolation_window_args"]["lower"] = isolation_width - isolation_offset
+                #             #     precursor_info["isolation_window_args"]["upper"] = isolation_width + isolation_offset
+
+                #             #     precursor_info["charge"]  = 2
+
+                #             mzml_data_struct['writer'].write_spectrum(
+                #                 ms2_mz_array, 
+                #                 ms2_i_array, 
+                #                 id=msn_spectrum_id, 
+                #                 centroided=True,
+                #                 scan_start_time=mzml_data_struct['current_precursor']['start_time'], 
+                #                 params=[
+                #                     {"ms level": 2}, 
+                #                     {"total ion current": ms2_i_array.sum()}
+                #                 ]
+                #             )
+
+                #             mzml_data_struct['scan_index'] += 1
+
+                            
+                        
+                    #logging.debug(mzml_data_struct['scan_index'])
+                    #scan_progress(mzml_data_struct)
+                    
+                    # for precursor_data in get_precursor_list(mzml_data_struct):
+                    #     mzml_data_struct['current_precursor']['data'] = precursor_data
+                    #     write_pasef_msms_spectrum(mzml_data_struct)
+            
+                    #     scan_progress(mzml_data_struct)
+               
 
     logging.info("Writing final mzML")
     mzml_data_struct['writer'].end()
@@ -968,13 +1234,23 @@ def main():
         default='none',
     )
 
-    logging.basicConfig(level=logging.INFO)
+    parser.add_argument(
+        "-d",
+        "--debug", 
+        default=False, 
+        action="store_true",
+        help="print verbose debug messages")
 
     args = parser.parse_args()
 
     if args.output == None:
         args.output = os.path.normpath(re.sub('d[/]?$', 'mzml', args.input))
 
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+    
     write_mzml(args)
 
 

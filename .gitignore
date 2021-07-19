@@ -6,3 +6,4 @@ pythonenv3.8
 **.d
 test/
 **.DS_Store
+.vscode

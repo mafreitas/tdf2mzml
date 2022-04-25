@@ -884,7 +884,6 @@ def write_pasef_dia_spectrum(mzml_data_struct):
 
     precursor_info["isolation_window_args"] = dict()
 
-    precursor_info["mz"] = mz_center
     precursor_info["isolation_window_args"]["target"] = mz_center
 
     isolation_width = mz_width/2.0
@@ -899,12 +898,13 @@ def write_pasef_dia_spectrum(mzml_data_struct):
         id=msn_spectrum_id,
         centroided=True,
         scan_start_time=mzml_data_struct['current_dia_frame']['frame'][1]/60,
-        scan_window_list=[(
-            mz_center-mz_width/2.0,
-            mz_center+mz_width/2.0,
-        )],
+        # TODO: report proper scan window (the range of fragment masses scanned in this scan)
+        # scan_window_list=[(
+        #     mz_center-mz_width/2.0,
+        #     mz_center+mz_width/2.0,
+        # )],
         compression=mzml_data_struct['compression'],
-        #precursor_information=precursor_info,
+        precursor_information=precursor_info,
         params=[
             {"ms level": 2},
             {"total ion current": ms2_i_array.sum()}

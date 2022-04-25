@@ -898,11 +898,10 @@ def write_pasef_dia_spectrum(mzml_data_struct):
         id=msn_spectrum_id,
         centroided=True,
         scan_start_time=mzml_data_struct['current_dia_frame']['frame'][1]/60,
-        # TODO: report proper scan window (the range of fragment masses scanned in this scan)
-        # scan_window_list=[(
-        #     mz_center-mz_width/2.0,
-        #     mz_center+mz_width/2.0,
-        # )],
+        scan_window_list=[(
+            mzml_data_struct['data_dict']['mz_acq_range_lower'],
+            mzml_data_struct['data_dict']['mz_acq_range_upper']
+        )],
         compression=mzml_data_struct['compression'],
         precursor_information=precursor_info,
         params=[

@@ -140,9 +140,9 @@ def centroid_precursor_frame(mzml_data_struct):
     """
     precursor_frame_id = mzml_data_struct['current_precursor']['id']
     num_scans = mzml_data_struct['td'].conn.execute("SELECT NumScans FROM Frames WHERE Id={0}".format(precursor_frame_id)).fetchone()[0]
-    print(mzml_data_struct['td'].conn.execute("SELECT NumScans FROM Frames WHERE Id={}".format(precursor_frame_id)).fetchone())
+    # print(mzml_data_struct['td'].conn.execute("SELECT NumScans FROM Frames WHERE Id={}".format(precursor_frame_id)).fetchone())
     data_list = mzml_data_struct['td'].extractCentroidedSpectrumForFrame (precursor_frame_id, 0, num_scans)
-    print(np.array(data_list))
+    # print(np.array(data_list))
     return np.array(data_list)
 
 

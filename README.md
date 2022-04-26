@@ -1,7 +1,7 @@
 # TDF2MZML
 ## Python script to convert Bruker TDF format to MzML
 
-### Tested with TimsTof Pro TDF 2.0 using SDK version 2.8.7
+### Tested with Python 3.8 and TimsTof Pro TDF 2.0 using SDK version 2.8.7
 #### support added for DIA data. DIA MS/MS only supports centroid output
 
 ### SDK Requirement

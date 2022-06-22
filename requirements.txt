@@ -2,7 +2,7 @@ cycler==0.10.0
 kiwisolver==1.2.0
 lxml==4.6.3
 matplotlib==3.2.1
-numpy==1.18.3
+numpy==1.22.0
 pandas==1.0.3
 psims==0.1.31
 pyparsing==2.4.7

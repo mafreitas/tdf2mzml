@@ -1,0 +1,31 @@
+[project]
+name = "tdf2mzml"
+description = "PythonConvert Bruker TDF format to MzML"
+authors = [{name = "Michael A. Freitas"}]
+readme = "README.md"
+license = {file = "LICENSE.md"}
+version = "0.1.0"
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "psims>=0.1.31",
+    "numpy>=1.18"
+]
+
+[project.urls]
+Home = "https://github.com/mafreitas/tdf2mzml"
+
+[project.scripts]
+tdf2mzml = "tdf2mzml.tdf2mzml:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = {find = {include = ["tdf2mzml*"]}}
+package-data = {tdf2mzml = ["*.so", "*.lib", "*.dll"]}

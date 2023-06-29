@@ -1,15 +1,15 @@
 [project]
 name = "tdf2mzml"
-description = "PythonConvert Bruker TDF format to MzML"
-authors = [{name = "Michael A. Freitas"}]
+description = "Convert Bruker TDF files to mzML"
+authors = [{name = "Michael A. Freitas", email = "mike.freitas@gmail.com"}]
 readme = "README.md"
-license = {file = "LICENSE.md"}
-version = "0.1.0"
+license = {file = "LICENSE.md", name = "BSD 4-Clause License"}
 classifiers = [
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
+dynamic = ["version"]
 requires-python = ">=3.8"
 dependencies = [
     "psims>=0.1.31",

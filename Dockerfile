@@ -7,19 +7,16 @@ LABEL author="Michael A. Freitas"
 LABEL maintainer="mike.freitas@gmail.com"
 LABEL dockerhub="mfreitas/tdf2mzml"
 
-ENV PATH /tdf2mzml:$PATH
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/tdf2mzml
 
-ADD requirements.txt /tdf2mzml/requirements.txt
-ADD tdf2mzml.py /tdf2mzml/tdf2mzml.py 
-ADD timsdata.py /tdf2mzml/timsdata.py
-ADD libtimsdata.so /tdf2mzml/libtimsdata.so
+ADD pyproject.toml /tdf2mzml/pyproject.toml
+ADD tdf2mzml /tdf2mzml/tdf2mzml
 
 RUN apt-get update && apt-get install python3-pip procps -y \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install tdf2mzml/
 
-RUN pip3 install -r /tdf2mzml/requirements.txt
-
+ENTRYPOINT [ "tdf2mzml" ]
 
 
 

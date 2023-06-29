@@ -23,7 +23,7 @@ import re
 import sqlite3, sys, time
 import sys
 import time
-import timsdata as timsdata
+import tdf2mzml.timsdata as timsdata
 
 NAME = 'tdf2mzml'
 MAJOR_VERSION = '0.3'
@@ -54,7 +54,7 @@ def timing(f):
     Returns
     -------
     funciton
-        new function wrap with timer and logging 
+        new function wrap with timer and logging
     """
     def wrap(*args):
         time1 = time.time()
@@ -123,7 +123,7 @@ def sha1_checksum(path_name):
 
 def centroid_precursor_frame(mzml_data_struct):
     """
-    Read and returns a centroid spectrum for a precursor frame 
+    Read and returns a centroid spectrum for a precursor frame
 
     This function uses the SDK to get and return an MS1 centroid spectrum for
     the requested frame.
@@ -148,7 +148,7 @@ def centroid_precursor_frame(mzml_data_struct):
 
 def profile_precursor_frame(mzml_data_struct):
     """
-    Read and return a profile spectrum for a precursor frame 
+    Read and return a profile spectrum for a precursor frame
 
     This function uses the SDK to get and return an MS1 profile spectrum for
     the requested frame.
@@ -165,7 +165,7 @@ def profile_precursor_frame(mzml_data_struct):
     """
     precursor_frame_id = mzml_data_struct['current_precursor']['id']
     num_scans = mzml_data_struct['td'].conn.execute("SELECT NumScans FROM Frames WHERE Id={}".format(precursor_frame_id)).fetchone()[0]
-    
+
     #SDK takes 0-num_scans as input.
     i_array = mzml_data_struct['td'].extractProfileForFrame(precursor_frame_id, 0, num_scans)
 
@@ -180,7 +180,7 @@ def profile_precursor_frame(mzml_data_struct):
 
 def raw_precursor_frame(mzml_data_struct):
     """
-    Read and return a raw spectrum for a precursor frame 
+    Read and return a raw spectrum for a precursor frame
 
     This function simply adds together the ms1 spectra to create a raw MS1 spectrum
     for the requested frame.
@@ -229,7 +229,7 @@ def get_spectrum_dict(mzml_data_struct):
 
     Returns
     -------
-    dict: 
+    dict:
         spectrum dictionary
     """
     spectrum_dict = collections.OrderedDict()
@@ -322,7 +322,7 @@ def get_spectrum_dict(mzml_data_struct):
 #     """
 #     Get the number of spectra for the conversion
 
-#     Helper function to determine number of spectra.  This function rescans the 
+#     Helper function to determine number of spectra.  This function rescans the
 #     data file in order to account for the start and end frames.
 
 #     Parameters
@@ -716,7 +716,7 @@ def get_precursor_list(mzml_data_struct):
 
     Returns
     -------
-    list 
+    list
         list of precursor values
     """
     # get MS2 spetrum for each precursor
@@ -924,13 +924,13 @@ def process_arg(args):
 
     Parameters
     ----------
-    args : 
-    
+    args :
+
         args manespace object from argspars
 
     Returns
     -------
-    dict : 
+    dict :
         dictionary of arguments
     """
     return vars(args)

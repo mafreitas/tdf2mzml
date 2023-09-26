@@ -10,14 +10,15 @@ The preferred method to run this application is via docker. Bruker has allowed u
 ### Installation
 
 #### From pip
-```pip install git+https://github.com/mafreitas/tdf2mzml
+```
+pip install git+https://github.com/mafreitas/tdf2mzml
 ```
 
 #### From source
 Download the source and see usage below
 
 ### USAGE
-```bash
+```
 usage: tdf2mzml.py [-h] -i input_file -o output_file 
             [-s value] [-e value]
             [--ms1_type value] [--compression value]

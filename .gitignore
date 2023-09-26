@@ -7,3 +7,11 @@ pythonenv3.8
 test/
 **.DS_Store
 .vscode
+
+# Environment
+.venv
+
+# Builds
+build/
+dist/
+*.egg-info/

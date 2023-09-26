@@ -5,7 +5,16 @@
 #### support added for DIA data. DIA MS/MS only supports centroid output
 
 ### SDK Requirement
-The preffered method to run this application is via docker. Bruker has allowed us to include the lib and python api (SDK version 2.8.7) in this repo for the purpose of building the docker image. To run the python script outside of docker you will need to obtain the SDK directly from Bruker.
+The preferred method to run this application is via docker. Bruker has allowed us to include the lib and python API (SDK version 2.8.7) in this repo for the purpose of building the docker image. To run the Python script outside of docker you will need to obtain the SDK directly from Bruker.
+
+### Installation
+
+#### From pip
+```pip install git+https://github.com/mafreitas/tdf2mzml
+```
+
+#### From source
+Download the source and see usage below
 
 ### USAGE
 ```bash

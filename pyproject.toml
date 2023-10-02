@@ -1,31 +1,62 @@
 [project]
 name = "tdf2mzml"
 description = "Convert Bruker TDF files to mzML"
-authors = [{name = "Michael A. Freitas", email = "mike.freitas@gmail.com"}]
-readme = "README.md"
-license = {file = "LICENSE.md", name = "BSD 4-Clause License"}
+maintainers = [
+    { name = "Herman Singh", email = "kartstig@gmail.com" },
+    { name = "Michael A. Freitas", email = "mike.freitas@gmail.com" },
+]
+authors = [{ name = "Michael A. Freitas", email = "mike.freitas@gmail.com" }]
+readme = "README.rst"
+license = { file = "LICENSE.md" }
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
     "Intended Audience :: Science/Research",
-    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.5",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
+
 ]
-dynamic = ["version"]
 requires-python = ">=3.8"
-dependencies = [
-    "psims>=0.1.31",
-    "numpy>=1.18"
-]
+dependencies = ["numpy>=1.18", "Click>=7.0"]
+dynamic = ["version"]
 
 [project.urls]
 Home = "https://github.com/mafreitas/tdf2mzml"
+Documentation = "https://flask.palletsprojects.com/"
+"Source Code" = "https://github.com/mafreitas/tdf2mzml"
+"Issue Tracker" = "https://github.com/mafreitas/tdf2mzml/issues"
 
 [project.scripts]
-tdf2mzml = "tdf2mzml.tdf2mzml:main"
+tdf2mzml = "tdf2mzml.cli:main"
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=63.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.coverage.run]
+branch = true
+source = ["td2mzml", "tests"]
+
+[tool.coverage.paths]
+source = ["src"]
+
 [tool.setuptools]
-packages = {find = {include = ["tdf2mzml*"]}}
-package-data = {tdf2mzml = ["*.so", "*.lib", "*.dll"]}
+include-package-data = true
+package-data = { "tdf2mzml" = [
+    "src/tdf2mzml/timsdata.dll",
+    "src/tdf2mzml/libtimsdata.so",
+] }
+
+[tool.setuptools.dynamic]
+version = { attr = "tdf2mzml.__version__" }

@@ -94,19 +94,23 @@ class IndexedMzMLWriter:
         meta = self._metadata
         inp = self._input_path
 
-        # Support TDF, TSF, and BAF source file names
-        if (inp / "analysis.tsf").exists():
-            db_name = "analysis.tsf"
-            bin_name = "analysis.tsf_bin"
+        # Support TDF, TSF, and BAF source file names.
+        # BAF may be a direct .baf file (standalone) or analysis.baf inside .d dir.
+        if inp.suffix == ".baf" and inp.is_file():
+            db_path = inp
+            bin_path = inp
+        elif (inp / "analysis.tsf").exists():
+            db_path = inp / "analysis.tsf"
+            bin_path = inp / "analysis.tsf_bin"
         elif (inp / "analysis.baf").exists():
-            db_name = "analysis.baf"
-            bin_name = "analysis.baf"  # BAF has no separate bin file
+            db_path = inp / "analysis.baf"
+            bin_path = inp / "analysis.baf"
         else:
-            db_name = "analysis.tdf"
-            bin_name = "analysis.tdf_bin"
+            db_path = inp / "analysis.tdf"
+            bin_path = inp / "analysis.tdf_bin"
 
-        db_path = inp / db_name
-        bin_path = inp / bin_name
+        db_name = db_path.name
+        bin_name = bin_path.name
 
         def _src_sha1(p: Path) -> str:
             if self._checksum_source_files and p.exists():

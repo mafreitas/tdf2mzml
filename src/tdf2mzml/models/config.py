@@ -136,6 +136,10 @@ class ConversionConfig(BaseModel):
             object.__setattr__(self, "input", d_dirs[0])
             path = self.input
 
+        # BAF: input may be a .baf file directly (standalone) or a .d directory
+        if path.suffix == ".baf" and path.is_file():
+            return self  # valid standalone BAF file
+
         tdf = path / "analysis.tdf"
         tsf = path / "analysis.tsf"
         baf = path / "analysis.baf"

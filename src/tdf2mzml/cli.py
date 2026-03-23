@@ -165,6 +165,9 @@ def _derive_output(input_path: str) -> str:
     str
         Output path with ``.d`` suffix replaced by ``.mzML``.
     """
+    # Strip .baf extension for standalone BAF files
+    if input_path.lower().endswith(".baf"):
+        return re.sub(r"\.baf$", ".mzML", input_path, flags=re.IGNORECASE)
     return re.sub(r"\.d[/\\]?$", ".mzML", input_path.rstrip("/\\"))
 
 
@@ -645,10 +648,14 @@ def run_conversion(config: ConversionConfig) -> None:
         Validated conversion parameters.
     """
     # Detect schema type and dispatch to the appropriate converter
-    if (config.input / "analysis.baf").exists() and not (config.input / "analysis.tdf").exists():
+    inp = config.input
+    is_baf = (inp.suffix == ".baf" and inp.is_file()) or (
+        (inp / "analysis.baf").exists() and not (inp / "analysis.tdf").exists()
+    )
+    if is_baf:
         run_baf_conversion(config)
         return
-    if (config.input / "analysis.tsf").exists() and not (config.input / "analysis.tdf").exists():
+    if (inp / "analysis.tsf").exists() and not (inp / "analysis.tdf").exists():
         run_tsf_conversion(config)
         return
 

@@ -15,3 +15,8 @@ test/
 build/
 dist/
 *.egg-info/
+test_data/baf/*.baf
+test_data/tdf/
+test_data/tsf/
+test_data/reference/
+test_output/

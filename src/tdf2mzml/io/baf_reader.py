@@ -59,10 +59,16 @@ class BafReader:
     """
 
     def __init__(self, path: Path | str) -> None:
-        self._path = Path(path)
-        baf_file = self._path / "analysis.baf"
-        if not baf_file.exists():
-            raise FileNotFoundError(f"analysis.baf not found in {self._path}")
+        p = Path(path)
+        # Accept either a direct .baf file or a .d directory containing analysis.baf
+        if p.suffix == ".baf" and p.is_file():
+            baf_file = p
+            self._path = p.parent
+        else:
+            baf_file = p / "analysis.baf"
+            if not baf_file.exists():
+                raise FileNotFoundError(f"analysis.baf not found in {p}")
+            self._path = p
         self._baf = BafData(baf_file)
         self._metadata: AcquisitionMetadata | None = None
         # Variable IDs resolved from SupportedVariables at open time

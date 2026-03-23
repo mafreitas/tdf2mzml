@@ -20,6 +20,7 @@ from tdf2mzml.models.metadata import AcquisitionMetadata
 from tdf2mzml.models.spectrum import PrecursorInfo, SpectrumArrays
 from tdf2mzml.output import xml_elements as xe
 from tdf2mzml.utils import sha1_checksum
+from xml.sax.saxutils import escape as _xml_escape
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,7 @@ class IndexedMzMLWriter:
             meta.analysis_id or
             "1"
         )
+        run_id = _xml_escape(run_id)
         # Warn if acquisition was not closed cleanly
         if not meta.closed_properly:
             logger.warning(
@@ -182,12 +184,12 @@ class IndexedMzMLWriter:
         )
         # Embed operator name and method as userParams on the run element
         operator_param = (
-            f'\n      <userParam name="contact name" value="{meta.operator_name}"/>'
+            f'\n      <userParam name="contact name" value="{_xml_escape(meta.operator_name)}"/>'
             if meta.operator_name
             else ""
         )
         method_param = (
-            f'\n      <userParam name="acquisition method" value="{meta.method_name}"/>'
+            f'\n      <userParam name="acquisition method" value="{_xml_escape(meta.method_name)}"/>'
             if meta.method_name
             else ""
         )

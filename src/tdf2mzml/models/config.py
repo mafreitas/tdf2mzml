@@ -1,4 +1,12 @@
-"""Conversion configuration model."""
+"""Conversion configuration model.
+
+:class:`ConversionConfig` is the single validated parameter object that flows
+through the entire conversion pipeline.  It is constructed from CLI arguments
+by :func:`~tdf2mzml.cli.parse_args` and validated with Pydantic, including
+auto-extraction of ``.zip`` archives and verification that the input directory
+contains a recognised Bruker analysis file (``analysis.tdf``, ``analysis.tsf``,
+or ``analysis.baf``).
+"""
 
 from pathlib import Path
 from typing import Annotated, Literal
@@ -16,12 +24,16 @@ from tdf2mzml.constants import (
 
 
 class ConversionConfig(BaseModel):
-    """All parameters controlling a single TDF → mzML conversion run.
+    """All parameters controlling a single Bruker → mzML conversion run.
+
+    Supports TDF (timsTOF PASEF), TSF (timsTOF fleX), and BAF (maXis/impact)
+    input formats.  Format detection is automatic based on which analysis
+    file is present in the ``.d`` directory.
 
     Parameters
     ----------
     input : Path
-        Path to the Bruker ``.d`` directory containing ``analysis.tdf``.
+        Path to the Bruker ``.d`` directory or standalone ``.baf`` file.
     output : Path
         Destination ``.mzML`` file path.
     ms1_type : {"centroid", "profile", "raw"}

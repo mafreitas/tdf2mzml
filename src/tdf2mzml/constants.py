@@ -112,7 +112,7 @@ CV_IM_LOWER_LIMIT: str = "MS:1002476"   # inverse reduced ion mobility lower lim
 CV_IM_UPPER_LIMIT: str = "MS:1002477"   # inverse reduced ion mobility upper limit
 
 # Encoding
-CV_64BIT_FLOAT: str = "MS:1000514"          # 64-bit float (m/z)
+CV_64BIT_FLOAT: str = "MS:1000523"          # 64-bit float
 CV_32BIT_FLOAT: str = "MS:1000521"          # 32-bit float (intensity)
 CV_ZLIB_COMPRESSION: str = "MS:1000574"     # zlib compression
 CV_NO_COMPRESSION: str = "MS:1000576"       # no compression

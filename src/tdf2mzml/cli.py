@@ -242,7 +242,8 @@ def _count_spectra_in_range(
     """
     from tdf2mzml.models.metadata import AcquisitionMetadata  # local to avoid cycle
 
-    assert isinstance(meta, AcquisitionMetadata)
+    if not isinstance(meta, AcquisitionMetadata):
+        raise TypeError(f"Expected AcquisitionMetadata, got {type(meta).__name__}")
 
     ms1_count = sum(
         1
@@ -510,7 +511,8 @@ def run_baf_conversion(config: ConversionConfig) -> None:
         actual_spectra = len(spectra_in_range)
         progress = ProgressLogger(total=actual_spectra)
 
-        # Pre-load MS2 precursor info for all MS2 spectra in range
+        # Batch-load MS2 precursor metadata (mass, CE, isolation width) from
+        # Steps + Variables tables for all MS2 spectra in the conversion range.
         ms2_ids = [
             int(row[0]) for row in spectra_in_range if int(row[9]) >= BAF_MS_LEVEL_MS1 + 1
         ]
@@ -647,7 +649,9 @@ def run_conversion(config: ConversionConfig) -> None:
     config : ConversionConfig
         Validated conversion parameters.
     """
-    # Detect schema type and dispatch to the appropriate converter
+    # Detect input format by probing for the characteristic analysis file.
+    # Priority: BAF first (standalone .baf or .d with analysis.baf),
+    # then TSF (analysis.tsf without analysis.tdf), then TDF (default).
     inp = config.input
     is_baf = (inp.suffix == ".baf" and inp.is_file()) or (
         (inp / "analysis.baf").exists() and not (inp / "analysis.tdf").exists()
@@ -738,7 +742,8 @@ def _write_spectra(
 
     meta = reader.metadata
 
-    # Load all DDA precursors for the frame range in a single SQL query
+    # Bulk-load all DDA precursors for the frame range in a single SQL
+    # query, avoiding per-frame round-trips.  Keyed by parent MS1 frame ID.
     from tdf2mzml.models.spectrum import PrecursorRow
     dda_precursors: dict[int, list[PrecursorRow]] = (
         reader.get_precursors_in_range(start_frame, end_frame)

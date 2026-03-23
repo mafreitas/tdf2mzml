@@ -1,8 +1,16 @@
 """Low-level ctypes wrapper around libbaf2sql_c.so / baf2sql_c.dll.
 
 Provides SQLite cache generation and binary array I/O for Bruker BAF files.
+The Bruker BAF format stores mass spectrometry data in a proprietary binary
+container (``analysis.baf``) with optional companion files (``_xtr``, ``_idx``).
+The ``libbaf2sql_c`` library generates an SQLite cache that exposes metadata
+(``Spectra``, ``AcquisitionKeys``, ``Steps``, ``Variables``, ``Properties``)
+and provides binary array read access for m/z and intensity data.
+
 The library is loaded once per process and its function signatures are
-configured on first use.
+configured on first use.  All SDK functions follow a two-call pattern:
+call once with NULL/0 to get the required buffer size, then call again
+with a buffer of that size.
 """
 
 from __future__ import annotations
@@ -29,6 +37,7 @@ _lib: ctypes.CDLL | None = None
 
 
 def _load_library() -> ctypes.CDLL:
+    """Load the first available BAF SDK shared library from the libs directory."""
     for candidate in _LIB_CANDIDATES:
         if candidate.exists():
             return ctypes.cdll.LoadLibrary(str(candidate))
@@ -39,11 +48,15 @@ def _load_library() -> ctypes.CDLL:
 
 
 def _configure_signatures(lib: ctypes.CDLL) -> None:
+    """Set ctypes argtypes/restype for each exported SDK function."""
+    # baf2sql_get_sqlite_cache_filename_v2(buf, buf_len, baf_path, ignore_calib)
+    # Returns required buffer length; 0 on error.
     lib.baf2sql_get_sqlite_cache_filename_v2.argtypes = [
         ctypes.c_char_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int,
     ]
     lib.baf2sql_get_sqlite_cache_filename_v2.restype = ctypes.c_uint32
 
+    # baf2sql_array_open_storage(use_raw_calibration, baf_path) → handle
     lib.baf2sql_array_open_storage.argtypes = [ctypes.c_int, ctypes.c_char_p]
     lib.baf2sql_array_open_storage.restype = ctypes.c_uint64
 
@@ -65,6 +78,7 @@ def _configure_signatures(lib: ctypes.CDLL) -> None:
 
 
 def _get_lib() -> ctypes.CDLL:
+    """Return the singleton BAF SDK library handle, loading it on first call."""
     global _lib
     if _lib is None:
         _lib = _load_library()
@@ -73,6 +87,7 @@ def _get_lib() -> ctypes.CDLL:
 
 
 def _last_error(lib: ctypes.CDLL) -> str:
+    """Retrieve the last error message from the BAF SDK (two-call pattern)."""
     n = lib.baf2sql_get_last_error_string(None, 0)
     buf = ctypes.create_string_buffer(n)
     lib.baf2sql_get_last_error_string(buf, n)
@@ -106,7 +121,8 @@ class BafData:
         self._lib = _get_lib()
         baf_bytes = str(baf_path).encode("utf-8")
 
-        # Ask the library to generate (or find) the SQLite cache
+        # Two-call pattern: first call with NULL buffer to get required length,
+        # second call with a buffer of that size to retrieve the cache path.
         n = self._lib.baf2sql_get_sqlite_cache_filename_v2(None, 0, baf_bytes, 0)
         if n == 0:
             raise RuntimeError(

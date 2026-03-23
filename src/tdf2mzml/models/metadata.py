@@ -1,4 +1,9 @@
-"""Acquisition metadata models populated from the TDF GlobalMetadata table."""
+"""Acquisition metadata models populated from TDF/TSF GlobalMetadata or BAF Properties.
+
+:class:`AcquisitionMetadata` is the unified metadata model shared across all
+three format readers (TDF, TSF, BAF).  It captures instrument identification,
+acquisition parameters, and spectrum counts used to write the mzML header.
+"""
 
 from typing import Annotated
 
@@ -35,10 +40,13 @@ class DiaWindow(BaseModel):
 
 
 class AcquisitionMetadata(BaseModel):
-    """All metadata extracted from a TDF file.
+    """All metadata extracted from a Bruker acquisition file.
 
-    Populated once at startup by :class:`~tdf2mzml.io.reader.TdfReader`
-    and passed read-only to all downstream components.
+    Populated once at startup by the format-specific reader
+    (:class:`~tdf2mzml.io.reader.TdfReader`,
+    :class:`~tdf2mzml.io.tsf_reader.TsfReader`, or
+    :class:`~tdf2mzml.io.baf_reader.BafReader`) and passed read-only
+    to all downstream components.
 
     Parameters
     ----------

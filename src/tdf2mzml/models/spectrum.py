@@ -1,4 +1,10 @@
-"""Per-spectrum data models."""
+"""Per-spectrum data models: arrays, precursor metadata, and typed row dicts.
+
+:class:`SpectrumArrays` wraps matched m/z + intensity numpy arrays.
+:class:`PrecursorInfo` captures MS2 precursor ion metadata (selected ion,
+isolation window, collision energy, ion mobility).
+:class:`PrecursorRow` is a TypedDict matching the TDF Precursors table.
+"""
 
 from typing import Annotated, TypedDict
 
@@ -66,10 +72,12 @@ class PrecursorInfo(BaseModel):
         Spectrum ID of the parent MS1 frame (e.g. ``"index=1"``).
     isolation_window_target : float
         Isolation window centre m/z (Da).
-    isolation_window_lower : float
-        Lower offset from the target (Da).
-    isolation_window_upper : float
-        Upper offset from the target (Da).
+    isolation_window_lower : float or None
+        Lower offset from the target (Da); ``None`` when unavailable
+        (e.g. for some BAF instruments).
+    isolation_window_upper : float or None
+        Upper offset from the target (Da); ``None`` when unavailable
+        (e.g. for some BAF instruments).
     one_over_k0 : float or None
         Inverse reduced ion mobility (1/K0) of the precursor ion in
         V·s/cm²; ``None`` when not available.
@@ -85,11 +93,11 @@ class PrecursorInfo(BaseModel):
     charge: int | None = None
     spectrum_reference: str
     isolation_window_target: float
-    isolation_window_lower: float
-    isolation_window_upper: Annotated[float, Field(ge=0)]
+    isolation_window_lower: Annotated[float, Field(ge=0)] | None = None
+    isolation_window_upper: Annotated[float, Field(ge=0)] | None = None
     one_over_k0: float | None = Field(
         None,
         description="Inverse reduced ion mobility 1/K0 of precursor (V·s/cm²)",
     )
-    collision_energy: float
+    collision_energy: float | None = None
     activation: str = "CID"

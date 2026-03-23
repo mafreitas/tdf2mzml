@@ -16,7 +16,6 @@ import numpy.typing as npt
 
 from tdf2mzml.io.bafdata import BafData
 from tdf2mzml.models.metadata import AcquisitionMetadata
-from tdf2mzml.models.spectrum import SpectrumArrays
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,10 @@ BAF_MS_LEVEL_MS2 = 1
 # SupportedVariables PermanentNames for per-spectrum acquisition parameters.
 # These are stable across instrument generations.
 _PNAME_COLLISION_ENERGY = "Collision_Energy_Act"
-_PNAME_ISOLATION_WIDTH = "Precursor_IsolationWidth"
+_PNAME_ISOLATION_WIDTH = {
+    "Precursor_IsolationWidth",
+    "Quadrupole_IsolationResolution_Act",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +87,7 @@ class BafReader:
             for var_id, name in rows:
                 if name == _PNAME_COLLISION_ENERGY:
                     self._var_collision_energy = int(var_id)
-                elif name == _PNAME_ISOLATION_WIDTH:
+                elif name in _PNAME_ISOLATION_WIDTH:
                     self._var_isolation_width = int(var_id)
         except sqlite3.OperationalError:
             pass  # SupportedVariables absent in some BAF versions
@@ -225,10 +227,13 @@ class BafReader:
 
         placeholders = ",".join("?" * len(spectrum_ids))
 
-        # Precursor mass from Steps (Number=1 = first/only fragmentation step)
+        # Precursor mass from Steps — take the first fragmentation step per spectrum
+        # (Number is 0-indexed on some instruments, 1-indexed on others)
         steps_rows = self._baf.conn.execute(
             f"SELECT TargetSpectrum, Mass FROM Steps "
-            f"WHERE TargetSpectrum IN ({placeholders}) AND Number=1",
+            f"WHERE TargetSpectrum IN ({placeholders}) "
+            f"AND Number = (SELECT MIN(Number) FROM Steps s2 "
+            f"WHERE s2.TargetSpectrum = Steps.TargetSpectrum)",
             spectrum_ids,
         ).fetchall()
         result: dict[int, dict[str, float | None]] = {}

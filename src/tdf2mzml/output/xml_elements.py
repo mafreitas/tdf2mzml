@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import textwrap
 from typing import Literal
+from xml.sax.saxutils import escape as _xml_escape, quoteattr as _xml_quoteattr
 
 import numpy as np
 import numpy.typing as npt
@@ -62,7 +63,7 @@ def indexed_mzml_open() -> bytes:
     ).encode()
 
 
-def mzml_open(spectrum_count: int, run_id: str = "1") -> bytes:
+def mzml_open(spectrum_count: int) -> bytes:
     """Return the opening ``<mzML>`` tag and run element stub.
 
     Parameters
@@ -70,8 +71,6 @@ def mzml_open(spectrum_count: int, run_id: str = "1") -> bytes:
     spectrum_count : int
         Total number of spectra (written into ``count`` attribute of
         ``<spectrumList>``).
-    run_id : str, optional
-        Instrument run identifier. Default ``"1"``.
 
     Returns
     -------
@@ -140,13 +139,13 @@ def file_description(
     for sf in source_files:
         sha_attr = (
             f'\n          <cvParam cvRef="MS" accession="MS:1000569" '
-            f'name="SHA-1" value="{sf["sha1"]}"/>'
+            f'name="SHA-1" value="{_xml_escape(sf["sha1"])}"/>'
             if sf.get("sha1")
             else ""
         )
         lines.append(
-            f'        <sourceFile id="{sf["id"]}" name="{sf["name"]}" '
-            f'location="{sf["location"]}">'
+            f'        <sourceFile id="{_xml_escape(sf["id"])}" name="{_xml_escape(sf["name"])}" '
+            f'location="{_xml_escape(sf["location"])}">'
             f'{sha_attr}\n'
             f'          <cvParam cvRef="MS" name="Bruker TDF format"/>\n'
             f'          <cvParam cvRef="MS" name="Bruker TDF nativeID format"/>\n'
@@ -176,8 +175,8 @@ def software_list(entries: list[dict[str, str]]) -> bytes:
     lines = [f'    <softwareList count="{len(entries)}">']
     for e in entries:
         lines.append(
-            f'      <software id="{e["id"]}" version="{e["version"]}">\n'
-            f'        <cvParam cvRef="MS" name="{e["cv_name"]}"/>\n'
+            f'      <software id="{_xml_escape(e["id"])}" version="{_xml_escape(e["version"])}">\n'
+            f'        <cvParam cvRef="MS" name="{_xml_escape(e["cv_name"])}"/>\n'
             f'      </software>'
         )
     lines.append("    </softwareList>")
@@ -210,12 +209,12 @@ def instrument_configuration_list(
     bytes
     """
     name_param = (
-        f'\n            <userParam name="instrument model" value="{instrument_name}"/>'
+        f'\n            <userParam name="instrument model" value="{_xml_escape(instrument_name)}"/>'
         if instrument_name
         else ""
     )
     vendor_param = (
-        f'\n            <userParam name="instrument vendor" value="{instrument_vendor}"/>'
+        f'\n            <userParam name="instrument vendor" value="{_xml_escape(instrument_vendor)}"/>'
         if instrument_vendor
         else ""
     )
@@ -223,7 +222,7 @@ def instrument_configuration_list(
         <instrumentConfigurationList count="1">
           <instrumentConfiguration id="IC1">
             <cvParam cvRef="MS" name="Bruker Daltonics instrument model"/>{name_param}
-            <cvParam cvRef="MS" name="instrument serial number" value="{serial_number}"/>{vendor_param}
+            <cvParam cvRef="MS" name="instrument serial number" value="{_xml_escape(serial_number)}"/>{vendor_param}
             <componentList count="3">
               <source order="1">
                 <cvParam cvRef="MS" name="nanospray inlet"/>
@@ -260,13 +259,13 @@ def sample_list(
     bytes
     """
     desc_param = (
-        f'\n        <userParam name="sample description" value="{description}"/>'
+        f'\n        <userParam name="sample description" value="{_xml_escape(description)}"/>'
         if description
         else ""
     )
     return textwrap.dedent(f"""\
         <sampleList count="1">
-          <sample id="S1" name="{sample_name}">{desc_param}
+          <sample id="S1" name="{_xml_escape(sample_name)}">{desc_param}
           </sample>
         </sampleList>
     """).encode("utf-8")
@@ -479,9 +478,27 @@ def spectrum_element(
             '        <precursorList count="1">',
             f'          <precursor{ref_attr}>',
             '            <isolationWindow>',
-            f'              <cvParam cvRef="MS" name="isolation window target m/z" value="{isolation_window_target}" unitName="m/z"/>',
-            f'              <cvParam cvRef="MS" name="isolation window lower offset" value="{isolation_window_lower}" unitName="m/z"/>',
-            f'              <cvParam cvRef="MS" name="isolation window upper offset" value="{isolation_window_upper}" unitName="m/z"/>',
+            *(
+                [
+                    f'              <cvParam cvRef="MS" name="isolation window target m/z" value="{isolation_window_target}" unitName="m/z"/>',
+                ]
+                if isolation_window_target is not None
+                else []
+            ),
+            *(
+                [
+                    f'              <cvParam cvRef="MS" name="isolation window lower offset" value="{isolation_window_lower}" unitName="m/z"/>',
+                ]
+                if isolation_window_lower is not None
+                else []
+            ),
+            *(
+                [
+                    f'              <cvParam cvRef="MS" name="isolation window upper offset" value="{isolation_window_upper}" unitName="m/z"/>',
+                ]
+                if isolation_window_upper is not None
+                else []
+            ),
             '            </isolationWindow>',
             '            <selectedIonList count="1">',
             '              <selectedIon>',

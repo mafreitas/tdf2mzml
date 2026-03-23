@@ -1,6 +1,12 @@
 """Ion mobility calculations and 1/K0 utility functions.
 
-All functions are pure (no SDK calls, no I/O) and operate on numpy arrays.
+Provides intensity-weighted mean 1/K0 computation and per-scan TIC
+aggregation.  All functions are pure numeric transforms operating on
+numpy arrays — no SDK calls or file I/O.
+
+The primary use case is the ``"mean"`` ion mobility mode, where each
+MS1 spectrum gets a single representative 1/K0 value computed as the
+intensity-weighted average across all mobility scan lines.
 """
 
 from __future__ import annotations
@@ -73,13 +79,15 @@ def per_scan_tic(
 
     result = np.zeros(n, dtype=np.float32)
 
-    # Separate non-empty scans — reduceat requires strictly increasing indices
+    # np.add.reduceat requires strictly increasing start indices, so we
+    # must skip empty scans and only concatenate non-empty intensity arrays.
     nonempty_idx = [i for i, s in enumerate(scans) if len(s[1]) > 0]
     if not nonempty_idx:
         return result
 
     arrs = [scans[i][1] for i in nonempty_idx]
     all_int = np.concatenate(arrs).astype(np.float32)
+    # Build cumulative start offsets for reduceat: [0, len0, len0+len1, ...]
     ne_lengths = np.fromiter((len(a) for a in arrs), dtype=np.intp, count=len(arrs))
     starts = np.zeros(len(arrs), dtype=np.intp)
     np.cumsum(ne_lengths[:-1], out=starts[1:])

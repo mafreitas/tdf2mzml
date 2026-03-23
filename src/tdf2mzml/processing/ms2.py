@@ -1,25 +1,11 @@
 """MS2 spectrum extraction for PASEF DDA and DIA acquisition modes."""
 
 import logging
-from typing import TypedDict
 
 import numpy as np
 
 from tdf2mzml.io.reader import TdfReader
-from tdf2mzml.models.spectrum import PrecursorInfo, SpectrumArrays
-
-
-class PrecursorRow(TypedDict, total=False):
-    """Typed dictionary matching the Precursors table columns."""
-
-    Id: int
-    LargestPeakMz: float
-    AverageMz: float
-    MonoisotopicMz: float
-    ScanNumber: float | None
-    Charge: int | None
-    Intensity: float
-    Parent: int
+from tdf2mzml.models.spectrum import PrecursorInfo, PrecursorRow, SpectrumArrays
 
 logger = logging.getLogger(__name__)
 

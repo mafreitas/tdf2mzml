@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-TEST_DATA_DIR = Path(__file__).parent.parent / "test"
+TEST_DATA_DIR = Path(__file__).parent.parent / "test_data" / "tdf"
 
 
 @pytest.fixture(scope="session")

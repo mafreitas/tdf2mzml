@@ -1,17 +1,21 @@
-example/
-__pycache__
-*.mzml
-pythonenv3.8
-**.zip
-**.d
-test/
-**.DS_Store
-.vscode
+# Large test data and outputs — never commit
+test_data/
+test_output/
+Incoming_updates_data/
+incoming_updates_data/
+tdf2mzml_old/
 
-# Environment
-.venv
-
-# Builds
-build/
-dist/
+# Python
+__pycache__/
+*.py[cod]
 *.egg-info/
+dist/
+build/
+.venv/
+*.so
+
+# IDE
+.idea/
+.vscode/
+*.swp
+test/

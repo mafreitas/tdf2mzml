@@ -1,31 +1,125 @@
 [project]
 name = "tdf2mzml"
-description = "Convert Bruker TDF files to mzML"
+version = "0.5.0"
+description = "Convert Bruker TimsTOF TDF files to indexed mzML"
 authors = [{name = "Michael A. Freitas", email = "mike.freitas@gmail.com"}]
 readme = "README.md"
-license = {file = "LICENSE.md", name = "BSD 4-Clause License"}
+license = {file = "LICENSE.md"}
 classifiers = [
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
-dynamic = ["version"]
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
-    "psims>=0.1.31",
-    "numpy>=1.18"
+    "pydantic>=2.0",
+    "numpy>=1.24",
 ]
 
 [project.urls]
 Home = "https://github.com/mafreitas/tdf2mzml"
 
 [project.scripts]
-tdf2mzml = "tdf2mzml.tdf2mzml:main"
+tdf2mzml = "tdf2mzml.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.9",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "numpy>=1.24",
+]
+
+# ---------------------------------------------------------------------------
+# Build system
+# ---------------------------------------------------------------------------
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = {find = {include = ["tdf2mzml*"]}}
-package-data = {tdf2mzml = ["*.so", "*.lib", "*.dll"]}
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tdf2mzml = ["libs/*.so", "libs/*.dll", "libs/*.lib"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict mode
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+
+# ctypes-heavy module — relax some checks
+[[tool.mypy.overrides]]
+module = "tdf2mzml.io.timsdata"
+disallow_any_generics = false
+warn_return_any = false
+disallow_untyped_decorators = false
+
+# ---------------------------------------------------------------------------
+# ruff — linting + formatting
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F",   # pyflakes / pycodestyle
+    "D",        # pydocstyle (NumPy convention)
+    "ANN",      # type annotations
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "RUF",      # ruff-specific rules
+    "B",        # flake8-bugbear
+    "SIM",      # flake8-simplify
+]
+ignore = [
+    "D203",  # one-blank-line-before-class (conflicts with D211)
+    "D213",  # multi-line-summary-second-line (conflicts with D212)
+    "ANN101", "ANN102",  # self/cls annotations
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# XML string builders have unavoidably long lines
+"src/tdf2mzml/output/xml_elements.py" = ["E501"]
+# Test fixtures don't need return-type annotations
+"tests/conftest.py" = ["ANN201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tdf2mzml"]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"

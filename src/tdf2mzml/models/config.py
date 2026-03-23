@@ -138,8 +138,10 @@ class ConversionConfig(BaseModel):
 
         tdf = path / "analysis.tdf"
         tsf = path / "analysis.tsf"
-        if not tdf.exists() and not tsf.exists():
+        baf = path / "analysis.baf"
+        if not tdf.exists() and not tsf.exists() and not baf.exists():
             raise ValueError(
-                f"Input directory '{path}' does not contain analysis.tdf or analysis.tsf"
+                f"Input directory '{path}' does not contain "
+                "analysis.tdf, analysis.tsf, or analysis.baf"
             )
         return self

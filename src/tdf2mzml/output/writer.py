@@ -94,10 +94,13 @@ class IndexedMzMLWriter:
         meta = self._metadata
         inp = self._input_path
 
-        # Support both TDF and TSF source file names
+        # Support TDF, TSF, and BAF source file names
         if (inp / "analysis.tsf").exists():
             db_name = "analysis.tsf"
             bin_name = "analysis.tsf_bin"
+        elif (inp / "analysis.baf").exists():
+            db_name = "analysis.baf"
+            bin_name = "analysis.baf"  # BAF has no separate bin file
         else:
             db_name = "analysis.tdf"
             bin_name = "analysis.tdf_bin"

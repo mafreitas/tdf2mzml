@@ -27,6 +27,7 @@ from tdf2mzml.constants import (
     MSMS_TYPE_PASEF_DDA,
     MSMS_TYPE_PASEF_DIA,
 )
+from tdf2mzml.io.baf_reader import BafReader, BAF_POLARITY_POSITIVE, BAF_MS_LEVEL_MS1
 from tdf2mzml.io.reader import TdfReader
 from tdf2mzml.io.tsf_reader import TsfReader, TSF_MSMS_TYPE_MS1, TSF_MSMS_TYPE_AUTO_MSMS
 from tdf2mzml.models.config import ConversionConfig
@@ -67,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         default=None,
         metavar="OUTPUT_FILE",
-        help="Output .mzML path (default: derived from input name)",
+        help="Output .mzML path (default: same location and base name as input, with .mzML extension)",
     )
     parser.add_argument(
         "--ms1_type",
@@ -470,6 +471,171 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
 
 
 @timing
+def run_baf_conversion(config: ConversionConfig) -> None:
+    """Execute a full BAF → indexed mzML conversion.
+
+    Parameters
+    ----------
+    config : ConversionConfig
+        Validated conversion parameters.
+    """
+    logger.info("tdf2mzml v%s  [BAF mode]", __version__)
+    logger.info("Input:  %s", config.input)
+    logger.info("Output: %s", config.output)
+
+    with BafReader(config.input) as reader:
+        meta = reader.metadata
+        logger.info(
+            "%d spectra total | %d MS1 | %d MS2",
+            meta.frame_count,
+            meta.ms1_spectra_count,
+            meta.ms2_dda_count,
+        )
+
+        all_spectra = reader.get_all_spectra()
+
+        start_frame = config.start_frame if config.start_frame != -1 else 1
+        end_frame = (
+            config.end_frame if config.end_frame != -1 else meta.frame_count
+        )
+
+        # Filter to the requested range
+        spectra_in_range = [
+            row for row in all_spectra
+            if start_frame <= int(row[0]) <= end_frame
+        ]
+        actual_spectra = len(spectra_in_range)
+        progress = ProgressLogger(total=actual_spectra)
+
+        # Pre-load MS2 precursor info for all MS2 spectra in range
+        ms2_ids = [
+            int(row[0]) for row in spectra_in_range if int(row[9]) >= BAF_MS_LEVEL_MS1 + 1
+        ]
+        ms2_info_cache = reader.get_ms2_precursor_batch(ms2_ids)
+
+        # Track last written MS1 spectrum ID for MS2 parent references
+        last_ms1_spectrum_id: str = "index=0"
+
+        with IndexedMzMLWriter(
+            output_path=config.output,
+            metadata=meta,
+            input_path=config.input,
+            compression=config.compression,
+            total_spectra=actual_spectra,
+            checksum_source_files=config.checksum_source_files,
+        ) as writer:
+            for row in spectra_in_range:
+                # Unpack spectrum row
+                # (Id, Rt, Parent, MzAcqRangeLower, MzAcqRangeUpper,
+                #  LineMzId, LineIntensityId, ProfileMzId, ProfileIntensityId,
+                #  MsLevel, Polarity)
+                spec_id   = int(row[0])
+                rt_sec    = float(row[1]) if row[1] is not None else 0.0
+                ms_level  = int(row[9])
+                polarity_code = int(row[10]) if row[10] is not None else BAF_POLARITY_POSITIVE
+                line_mz_id  = row[5]
+                line_int_id = row[6]
+                prof_mz_id  = row[7]
+                prof_int_id = row[8]
+
+                scan_start_time = rt_sec / 60.0
+                polarity = (
+                    "positive scan" if polarity_code == BAF_POLARITY_POSITIVE
+                    else "negative scan"
+                )
+
+                # --- Read spectrum arrays ---
+                # Prefer centroid (line); fall back to profile for MS1
+                use_centroid = config.ms1_type != "profile"
+                if use_centroid and line_mz_id is not None and line_int_id is not None:
+                    try:
+                        raw_mz, raw_i = reader.read_line_spectrum(
+                            int(line_mz_id), int(line_int_id)
+                        )
+                        centroided = True
+                    except RuntimeError as exc:
+                        logger.warning("Spectrum %d: line read failed: %s", spec_id, exc)
+                        raw_mz = np.empty(0, dtype=np.float64)
+                        raw_i = np.empty(0, dtype=np.float32)
+                        centroided = True
+                elif prof_mz_id is not None and prof_int_id is not None:
+                    try:
+                        raw_mz, raw_i = reader.read_profile_spectrum(
+                            int(prof_mz_id), int(prof_int_id)
+                        )
+                        centroided = False
+                    except RuntimeError as exc:
+                        logger.warning("Spectrum %d: profile read failed: %s", spec_id, exc)
+                        raw_mz = np.empty(0, dtype=np.float64)
+                        raw_i = np.empty(0, dtype=np.float32)
+                        centroided = False
+                else:
+                    raw_mz = np.empty(0, dtype=np.float64)
+                    raw_i = np.empty(0, dtype=np.float32)
+                    centroided = True
+
+                # --- MS1 ---
+                if ms_level == BAF_MS_LEVEL_MS1:
+                    if config.ms1_threshold > 0 and len(raw_i) > 0:
+                        mask = raw_i >= config.ms1_threshold
+                        raw_mz = raw_mz[mask]
+                        raw_i = raw_i[mask]
+
+                    arrays = SpectrumArrays(mz=raw_mz, intensity=raw_i)
+                    last_ms1_spectrum_id = writer.write_ms1_spectrum(
+                        arrays=arrays,
+                        scan_start_time=scan_start_time,
+                        centroided=centroided,
+                        polarity=polarity,
+                    )
+                    progress.update(ms_level=1)
+
+                # --- MS2 ---
+                else:
+                    if config.ms2_threshold > 0 and len(raw_i) > 0:
+                        mask = raw_i >= config.ms2_threshold
+                        raw_mz = raw_mz[mask]
+                        raw_i = raw_i[mask]
+
+                    if config.ms2_nlargest > 0 and len(raw_i) > config.ms2_nlargest:
+                        top_idx = np.argpartition(raw_i, -config.ms2_nlargest)[
+                            -config.ms2_nlargest:
+                        ]
+                        top_idx = top_idx[np.argsort(raw_mz[top_idx])]
+                        raw_mz = raw_mz[top_idx]
+                        raw_i = raw_i[top_idx]
+
+                    arrays = SpectrumArrays(mz=raw_mz, intensity=raw_i)
+
+                    info = ms2_info_cache.get(spec_id, {})
+                    precursor_mz = info.get("mass", 0.0)
+                    ce = info.get("collision_energy")
+                    iso_w = info.get("isolation_width")
+                    half_w = float(iso_w) / 2.0 if iso_w is not None else None
+
+                    precursor_info = PrecursorInfo(
+                        mz=float(precursor_mz),
+                        charge=None,
+                        spectrum_reference=last_ms1_spectrum_id,
+                        isolation_window_target=float(precursor_mz),
+                        isolation_window_lower=half_w,
+                        isolation_window_upper=half_w,
+                        one_over_k0=None,
+                        collision_energy=float(ce) if ce is not None else None,
+                        activation="CID",
+                    )
+                    writer.write_ms2_spectrum(
+                        arrays=arrays,
+                        scan_start_time=scan_start_time,
+                        precursor=precursor_info,
+                        polarity=polarity,
+                    )
+                    progress.update(ms_level=2)
+
+    logger.info("Conversion complete: %s", config.output)
+
+
+@timing
 def run_conversion(config: ConversionConfig) -> None:
     """Execute a full TDF → indexed mzML conversion.
 
@@ -478,7 +644,10 @@ def run_conversion(config: ConversionConfig) -> None:
     config : ConversionConfig
         Validated conversion parameters.
     """
-    # Detect schema type and dispatch to TSF converter if needed
+    # Detect schema type and dispatch to the appropriate converter
+    if (config.input / "analysis.baf").exists() and not (config.input / "analysis.tdf").exists():
+        run_baf_conversion(config)
+        return
     if (config.input / "analysis.tsf").exists() and not (config.input / "analysis.tdf").exists():
         run_tsf_conversion(config)
         return

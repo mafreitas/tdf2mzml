@@ -10,7 +10,7 @@ LABEL dockerhub="mfreitas/tdf2mzml"
 WORKDIR /app
 
 # libbaf2sql_c.so depends on libgomp (OpenMP runtime)
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy only what's needed for installation (no test data, no SDK sources)

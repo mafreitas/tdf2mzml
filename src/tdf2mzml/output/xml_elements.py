@@ -635,7 +635,7 @@ def spectrum_element(
 
     # m/z array
     lines += [
-        '          <binaryDataArray>',
+        f'          <binaryDataArray encodedLength="{len(mz_b64)}">',
         f'            {_cv(CV_MZ_ARRAY, "m/z array")}',
         f'            {_cv(CV_64BIT_FLOAT, "64-bit float")}',
         f'            {_cv(comp_cv_acc, comp_cv_name)}',
@@ -645,7 +645,7 @@ def spectrum_element(
 
     # intensity array
     lines += [
-        '          <binaryDataArray>',
+        f'          <binaryDataArray encodedLength="{len(int_b64)}">',
         f'            {_cv(CV_INTENSITY_ARRAY, "intensity array")}',
         f'            {_cv(CV_32BIT_FLOAT, "32-bit float")}',
         f'            {_cv(comp_cv_acc, comp_cv_name)}',
@@ -657,7 +657,7 @@ def spectrum_element(
     if ion_mobility_array is not None:
         im_b64 = encode_array(ion_mobility_array, compression)
         lines += [
-            '          <binaryDataArray>',
+            f'          <binaryDataArray encodedLength="{len(im_b64)}">',
             f'            {_cv(CV_ION_MOBILITY_ARRAY, "mean inverse reduced ion mobility array")}',
             f'            {_cv(CV_64BIT_FLOAT, "64-bit float")}',
             f'            {_cv(comp_cv_acc, comp_cv_name)}',

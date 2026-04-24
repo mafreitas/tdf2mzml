@@ -15,7 +15,12 @@ import numpy as np
 import numpy.typing as npt
 
 from tdf2mzml import __version__
-from tdf2mzml.constants import SDK_VERSION
+from tdf2mzml.constants import (
+    CV_BRUKER_SOFTWARE,
+    CV_CUSTOM_SOFTWARE,
+    CV_MICROTOFCONTROL,
+    SDK_VERSION,
+)
 from tdf2mzml.models.metadata import AcquisitionMetadata
 from tdf2mzml.models.spectrum import PrecursorInfo, SpectrumArrays
 from tdf2mzml.output import xml_elements as xe
@@ -134,16 +139,26 @@ class IndexedMzMLWriter:
         ]
 
         software_entries = [
-            {"id": "TIMS_SDK", "version": SDK_VERSION, "cv_name": "Bruker software"},
+            {
+                "id": "TIMS_SDK",
+                "version": SDK_VERSION,
+                "cv_name": "Bruker software",
+                "cv_accession": CV_BRUKER_SOFTWARE,
+                "user_params": [{"name": "software name", "value": "TIMS SDK"}],
+            },
             {
                 "id": meta.acq_software,
                 "version": meta.acq_software_version,
                 "cv_name": "micrOTOFcontrol",
+                "cv_accession": CV_MICROTOFCONTROL,
             },
             {
                 "id": "tdf2mzml",
                 "version": __version__,
-                "cv_name": f"python {python_version()}",
+                "cv_name": "custom unreleased software tool",
+                "cv_accession": CV_CUSTOM_SOFTWARE,
+                "cv_value": "tdf2mzml",
+                "user_params": [{"name": "python", "value": python_version()}],
             },
         ]
 
@@ -241,7 +256,7 @@ class IndexedMzMLWriter:
         str
             The spectrum ID string assigned to this spectrum.
         """
-        spectrum_id = f"index={self._spectrum_index}"
+        spectrum_id = f"index={self._spectrum_index + 1}"
         return self._write_spectrum(
             spectrum_id=spectrum_id,
             ms_level=1,
@@ -283,7 +298,7 @@ class IndexedMzMLWriter:
         str
             The spectrum ID string assigned to this spectrum.
         """
-        spectrum_id = f"index={self._spectrum_index}"
+        spectrum_id = f"index={self._spectrum_index + 1}"
         ook0 = one_over_k0 if one_over_k0 is not None else precursor.one_over_k0
         return self._write_spectrum(
             spectrum_id=spectrum_id,

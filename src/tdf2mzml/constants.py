@@ -92,6 +92,9 @@ CV_MS1_SPECTRUM: str = "MS:1000579"          # MS1 spectrum
 CV_MSN_SPECTRUM: str = "MS:1000580"          # MSn spectrum
 CV_CENTROID_SPECTRUM: str = "MS:1000127"     # centroid spectrum
 CV_PROFILE_SPECTRUM: str = "MS:1000128"      # profile spectrum
+CV_MS_LEVEL: str = "MS:1000511"              # ms level
+CV_POSITIVE_SCAN: str = "MS:1000130"         # positive scan
+CV_NEGATIVE_SCAN: str = "MS:1000129"         # negative scan
 
 # Scan params
 CV_SCAN_START_TIME: str = "MS:1000016"       # scan start time
@@ -99,6 +102,9 @@ CV_FILTER_STRING: str = "MS:1000512"         # filter string (unused)
 CV_TOTAL_ION_CURRENT: str = "MS:1000285"     # total ion current
 CV_BASE_PEAK_MZ: str = "MS:1000504"          # base peak m/z
 CV_BASE_PEAK_INTENSITY: str = "MS:1000505"   # base peak intensity
+CV_NO_COMBINATION: str = "MS:1000795"        # no combination
+CV_SCAN_WINDOW_LOWER: str = "MS:1000501"     # scan window lower limit
+CV_SCAN_WINDOW_UPPER: str = "MS:1000500"     # scan window upper limit
 
 # Arrays
 CV_MZ_ARRAY: str = "MS:1000514"             # m/z array
@@ -118,11 +124,14 @@ CV_ZLIB_COMPRESSION: str = "MS:1000574"     # zlib compression
 CV_NO_COMPRESSION: str = "MS:1000576"       # no compression
 
 # Instrument / source
-CV_BRUKER_INSTRUMENT: str = "MS:1001534"    # Bruker Daltonics instrument model
+CV_BRUKER_INSTRUMENT: str = "MS:1000122"    # Bruker Daltonics instrument model
 CV_NANOSPRAY_INLET: str = "MS:1000485"      # nanospray inlet
 CV_QUADRUPOLE: str = "MS:1000081"           # quadrupole
 CV_TOF_ANALYZER: str = "MS:1000084"         # time-of-flight
-CV_MCP_DETECTOR: str = "MS:1000116"         # microchannel plate detector
+CV_MCP_DETECTOR: str = "MS:1000114"         # microchannel plate detector
+CV_PHOTOMULTIPLIER: str = "MS:1000116"      # photomultiplier
+CV_INSTRUMENT_SERIAL: str = "MS:1000529"    # instrument serial number
+CV_ESI: str = "MS:1000073"                  # electrospray ionization
 
 # File format
 CV_BRUKER_TDF_FORMAT: str = "MS:1002817"    # Bruker TDF format
@@ -131,7 +140,8 @@ CV_SHA1: str = "MS:1000569"                  # SHA-1
 
 # Software
 CV_BRUKER_SOFTWARE: str = "MS:1000692"      # Bruker software
-CV_PYTHON: str = "MS:1000799"               # ProteoWizard/Python-based software (placeholder)
+CV_CUSTOM_SOFTWARE: str = "MS:1000799"      # custom unreleased software tool
+CV_MICROTOFCONTROL: str = "MS:1000726"      # micrOTOFcontrol
 
 # Activation
 CV_CID: str = "MS:1000133"                  # collision-induced dissociation
@@ -143,6 +153,19 @@ CV_CHARGE_STATE: str = "MS:1000041"         # charge state
 CV_ISOLATION_WINDOW_TARGET: str = "MS:1000827"  # isolation window target m/z
 CV_ISOLATION_WINDOW_LOWER: str = "MS:1000828"   # isolation window lower offset
 CV_ISOLATION_WINDOW_UPPER: str = "MS:1000829"   # isolation window upper offset
+
+# Data processing
+CV_CONVERSION_TO_MZML: str = "MS:1000544"   # Conversion to mzML
+
+# ---------------------------------------------------------------------------
+# Unit CV accessions (for unitCvRef + unitAccession + unitName triplets)
+# ---------------------------------------------------------------------------
+
+UNIT_MZ: str = "MS:1000040"                 # m/z
+UNIT_MINUTE: str = "UO:0000031"             # minute
+UNIT_ELECTRONVOLT: str = "UO:0000266"       # electronvolt
+UNIT_COUNTS: str = "MS:1000131"             # number of detector counts
+UNIT_VSCC: str = "MS:1002814"               # volt-second per square centimeter
 
 # ---------------------------------------------------------------------------
 # mzML namespace / schema

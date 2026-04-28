@@ -2,7 +2,7 @@
 
 All notable changes to tdf2mzml are documented in this file.
 
-## [0.6.0] — In Progress
+## [0.6.0] — 2026-04-28
 
 ### Added
 - **CI/CD pipeline** — GitHub Actions workflow with lint, typecheck, and test jobs on every PR
@@ -14,13 +14,16 @@ All notable changes to tdf2mzml are documented in this file.
   - Correct accessions for instrument, software, file description, data processing, precursor, and ion mobility CV terms
 - **Makefile** — `setup`, `test`, `lint`, `typecheck`, `format`, `build`, `ci` targets
 - `.tool-versions` — Python 3.12 pinned via asdf
+- Docker images: `0.6` and `0.6_noentry` published to Docker Hub
 - Docker smoke tests (marked slow, manual only)
-- Coverage configuration targeting 85%+ on critical output modules
-- Full docstrings across all modules (excluding SDK bindings)
+- Coverage configuration targeting 85%+ on critical output modules (96% achieved)
+- CHANGELOG.md documenting all versions
+- SDK-dependent tests auto-skipped when Bruker shared library unavailable (CI, macOS)
 
 ### Fixed
 - All mypy strict-mode errors resolved across 6 modules (13 errors)
 - ruff lint and format applied consistently across all 28 Python files
+- GitHub Actions updated to Node.js 24 compatible versions (checkout v5, setup-python v6)
 
 ### Changed
 - Version bumped to 0.6.0

@@ -9,6 +9,7 @@ from tdf2mzml.cli import run_conversion
 from tdf2mzml.models.config import ConversionConfig
 
 
+@pytest.mark.slow
 def test_dda_conversion_produces_valid_mzml(pasef_dda_path: Path, tmp_path: Path) -> None:
     """Full DDA conversion produces a parseable indexed mzML file."""
     out = tmp_path / "dda_output.mzML"
@@ -57,6 +58,7 @@ def test_config_zip_input(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.slow
 def test_config_frame_range_validation(pasef_dda_path: Path, tmp_path: Path) -> None:
     """ConversionConfig rejects end_frame <= start_frame."""
     with pytest.raises(ValueError, match="end_frame"):

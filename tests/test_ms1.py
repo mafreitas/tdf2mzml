@@ -3,10 +3,13 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from tdf2mzml.io.reader import TdfReader
 from tdf2mzml.models.spectrum import SpectrumArrays
 from tdf2mzml.processing.ms1 import get_centroid_ms1, get_profile_ms1, get_raw_ms1
+
+pytestmark = pytest.mark.slow
 
 
 def _first_ms1_frame(reader: TdfReader) -> tuple[int, int]:

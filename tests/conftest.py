@@ -4,6 +4,20 @@ from pathlib import Path
 
 import pytest
 
+# Skip SDK-dependent test modules when the Bruker shared library is unavailable
+# (e.g. macOS, CI without SDK). These modules import TdfReader at collection
+# time, which triggers ctypes.CDLL loading of libtimsdata.so.
+try:
+    from tdf2mzml.io import timsdata as _  # noqa: F401
+
+    _SDK_AVAILABLE = True
+except OSError:
+    _SDK_AVAILABLE = False
+
+collect_ignore_glob: list[str] = []
+if not _SDK_AVAILABLE:
+    collect_ignore_glob += ["test_conversion.py", "test_ms1.py", "test_reader.py"]
+
 TEST_DATA_DIR = Path(__file__).parent.parent / "test_data" / "tdf"
 
 

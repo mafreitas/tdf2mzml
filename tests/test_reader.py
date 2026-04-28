@@ -7,6 +7,8 @@ import pytest
 from tdf2mzml.io.reader import TdfReader
 from tdf2mzml.models.metadata import AcquisitionMetadata
 
+pytestmark = pytest.mark.slow
+
 
 def test_metadata_loads(pasef_dda_path: Path) -> None:
     """AcquisitionMetadata is populated with expected fields."""

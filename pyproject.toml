@@ -123,3 +123,24 @@ known-first-party = ["tdf2mzml"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (docker, integration — skipped in CI)",
+]
+
+# ---------------------------------------------------------------------------
+# coverage
+# ---------------------------------------------------------------------------
+
+[tool.coverage.run]
+source = ["tdf2mzml"]
+
+[tool.coverage.report]
+show_missing = true
+# Full-suite coverage target; CI runs without TDF SDK/data so only
+# xml_elements, constants, encoding, and models are exercised.
+# The integration tests (test_conversion, test_ms1, test_reader) cover
+# the IO and processing modules when run locally with test data.
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+]

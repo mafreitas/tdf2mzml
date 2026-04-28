@@ -1,6 +1,9 @@
 """MS2 spectrum extraction for PASEF DDA and DIA acquisition modes."""
 
+from __future__ import annotations
+
 import logging
+from collections.abc import Mapping
 
 import numpy as np
 
@@ -14,7 +17,7 @@ def get_pasef_dda_ms2(
     reader: TdfReader,
     precursor: PrecursorRow,
     parent_spectrum_id: str,
-    ms2_data: dict[int, tuple[object, object]] | None = None,
+    ms2_data: Mapping[int, tuple[object, object]] | None = None,
     pasef_info: dict[int, dict[str, float]] | None = None,
     one_over_k0: float | None = None,
 ) -> tuple[SpectrumArrays, PrecursorInfo]:
@@ -85,9 +88,9 @@ def get_pasef_dda_ms2(
     if _pasef is None:
         logger.warning("No PASEF frame info for precursor ID %d", precursor_id)
         _pasef = {"IsolationMz": 0.0, "CollisionEnergy": 0.0, "IsolationWidth": 0.0}
-    isolation_mz = float(_pasef["IsolationMz"])
-    collision_energy = float(_pasef["CollisionEnergy"])
-    isolation_width = float(_pasef["IsolationWidth"])
+    isolation_mz = float(_pasef["IsolationMz"])  # type: ignore[arg-type]
+    collision_energy = float(_pasef["CollisionEnergy"])  # type: ignore[arg-type]
+    isolation_width = float(_pasef["IsolationWidth"])  # type: ignore[arg-type]
 
     # Determine selected ion m/z and isolation offsets
     charge = precursor.get("Charge")

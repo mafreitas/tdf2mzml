@@ -618,11 +618,12 @@ def run_baf_conversion(config: ConversionConfig) -> None:
                     iso_w = info.get("isolation_width")
                     half_w = float(iso_w) / 2.0 if iso_w is not None else None
 
+                    _mz = float(precursor_mz) if precursor_mz is not None else 0.0
                     precursor_info = PrecursorInfo(
-                        mz=float(precursor_mz),
+                        mz=_mz,
                         charge=None,
                         spectrum_reference=last_ms1_spectrum_id,
-                        isolation_window_target=float(precursor_mz),
+                        isolation_window_target=_mz,
                         isolation_window_lower=half_w,
                         isolation_window_upper=half_w,
                         one_over_k0=None,
@@ -825,7 +826,7 @@ def _write_spectra(
 
                     # Batch 1/K0 conversion for all precursor scan numbers at once
                     scan_numbers = [
-                        float(p["ScanNumber"])
+                        float(p["ScanNumber"])  # type: ignore[arg-type]
                         for p in frame_precursors
                         if p.get("ScanNumber") is not None
                     ]

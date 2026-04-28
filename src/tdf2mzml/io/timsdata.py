@@ -207,7 +207,7 @@ _dll.tsf_read_profile_spectrum_v2.restype = c_uint32
 
 # TSF coordinate conversion
 _TSF_CONV_ARGS = [c_uint64, c_int64, POINTER(c_double), POINTER(c_double), c_uint32]
-_dll.tsf_index_to_mz.argtypes = _TSF_CONV_ARGS
+_dll.tsf_index_to_mz.argtypes = _TSF_CONV_ARGS  # type: ignore[assignment]
 _dll.tsf_index_to_mz.restype = c_uint32
 
 # ---------------------------------------------------------------------------

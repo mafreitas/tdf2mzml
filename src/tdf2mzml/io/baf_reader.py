@@ -182,7 +182,7 @@ class BafReader:
     # Spectrum enumeration
     # ------------------------------------------------------------------
 
-    def get_all_spectra(self) -> list[tuple]:
+    def get_all_spectra(self) -> list[tuple[int, float, int | None, float, float, int | None, int | None, int | None, int | None, int, int]]:
         """Return all spectra ordered by Id.
 
         Each row:

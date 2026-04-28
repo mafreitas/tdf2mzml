@@ -138,7 +138,7 @@ class IndexedMzMLWriter:
             },
         ]
 
-        software_entries = [
+        software_entries: list[dict[str, object]] = [
             {
                 "id": "TIMS_SDK",
                 "version": SDK_VERSION,

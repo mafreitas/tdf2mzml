@@ -267,7 +267,7 @@ def file_description(
 # ---------------------------------------------------------------------------
 
 
-def software_list(entries: list[dict[str, str]]) -> bytes:
+def software_list(entries: list[dict[str, object]]) -> bytes:
     """Return the ``<softwareList>`` block.
 
     Parameters
@@ -283,17 +283,18 @@ def software_list(entries: list[dict[str, str]]) -> bytes:
     """
     lines = [f'    <softwareList count="{len(entries)}">']
     for e in entries:
-        acc = e.get("cv_accession", "")
-        cv_value = e.get("cv_value", "")
-        cv_tag = f'        {_cv(acc, _xml_escape(e["cv_name"]), cv_value)}'
+        acc = str(e.get("cv_accession", ""))
+        cv_value = str(e.get("cv_value", ""))
+        cv_tag = f'        {_cv(acc, _xml_escape(str(e["cv_name"])), cv_value)}'
         user_tags = ""
-        for up in e.get("user_params", []):
+        user_params: list[dict[str, str]] = e.get("user_params", [])  # type: ignore[assignment]
+        for up in user_params:
             user_tags += (
                 f'\n        <userParam name="{_xml_escape(up["name"])}" '
                 f'value="{_xml_escape(up["value"])}" type="xsd:string"/>'
             )
         lines.append(
-            f'      <software id="{_xml_escape(e["id"])}" version="{_xml_escape(e["version"])}">\n'
+            f'      <software id="{_xml_escape(str(e["id"]))}" version="{_xml_escape(str(e["version"]))}">\n'
             f'{cv_tag}{user_tags}\n'
             f'      </software>'
         )

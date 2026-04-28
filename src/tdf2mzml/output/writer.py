@@ -378,7 +378,14 @@ class IndexedMzMLWriter:
     # ------------------------------------------------------------------
 
     def finalize(self) -> None:
-        """Close spectrumList, run, mzML; write index, checksum, close file."""
+        """Close all open XML elements, write the spectrum index, and close the file.
+
+        Writes the closing ``</spectrumList>``, ``</run>``, ``</mzML>`` tags,
+        then the ``<indexList>`` with byte offsets for every spectrum, the
+        ``<indexListOffset>``, and finally the SHA-1 ``<fileChecksum>`` and
+        ``</indexedmzML>`` closing tag.  The output file is closed after this
+        call; subsequent calls are no-ops.
+        """
         if self._fh.closed:
             return
 

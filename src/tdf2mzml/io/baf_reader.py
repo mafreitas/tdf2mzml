@@ -110,7 +110,14 @@ class BafReader:
 
     @property
     def metadata(self) -> AcquisitionMetadata:
-        """Acquisition metadata (lazy-loaded, cached)."""
+        """All acquisition metadata, lazily loaded on first access.
+
+        Returns
+        -------
+        AcquisitionMetadata
+            Frozen Pydantic model populated from the BAF ``Properties``
+            and ``Spectra`` tables.
+        """
         if self._metadata is None:
             self._metadata = self._load_metadata()
         return self._metadata

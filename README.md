@@ -1,6 +1,8 @@
 # tdf2mzml
 
-**v0.5.0** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
+[![CI](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml/badge.svg)](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml)
+
+**v0.6.0** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
 
 Author: Michael A. Freitas
 
@@ -35,7 +37,7 @@ pip install git+https://github.com/mafreitas/tdf2mzml
 ```bash
 git clone https://github.com/mafreitas/tdf2mzml.git
 cd tdf2mzml
-pip install -e .
+make setup
 ```
 
 ### Dependencies
@@ -117,7 +119,14 @@ Full ion-mobility-resolved output. Every peak from every mobility scan is preser
 
 ## Docker Usage
 
-A pre-built image is available on Docker Hub as `mfreitas/tdf2mzml`.
+Pre-built images are available on Docker Hub as `mfreitas/tdf2mzml`.
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release (CMD-based, Nextflow-compatible) |
+| `0.5` | v0.5/0.6 with ENTRYPOINT |
+| `0.5_noentry` | v0.5/0.6 with CMD (same as `latest`) |
+| `mhcquant` | v0.1 legacy image for MHCquant/nf-core pipelines |
 
 ### Pull and run from Docker Hub
 
@@ -131,39 +140,64 @@ docker run --rm -v $PWD:/data mfreitas/tdf2mzml -i /data/sample.d -o /data/sampl
 # Convert a BAF dataset with zlib compression
 docker run --rm -v $PWD:/data mfreitas/tdf2mzml -i /data/sample.d --compression zlib
 
-# Use a specific version
-docker run --rm -v $PWD:/data mfreitas/tdf2mzml:0.5 -i /data/sample.d
+# Use the noentry variant (for Nextflow / workflow managers)
+docker run --rm -v $PWD:/data mfreitas/tdf2mzml:0.5_noentry tdf2mzml -i /data/sample.d
 ```
 
 ### Build the image locally
 
 ```bash
-docker build -t tdf2mzml .
-docker run --rm -v $PWD:/data tdf2mzml -i /data/sample.d -o /data/sample.mzML
+make build
 ```
 
 ## Development
 
-Install with development dependencies:
+### Setup
 
 ```bash
-pip install -e ".[dev]"
+git clone https://github.com/mafreitas/tdf2mzml.git
+cd tdf2mzml
+make setup    # installs asdf runtime + dev dependencies
 ```
 
 The dev extras include `ruff`, `mypy`, `pytest`, and `pytest-cov`.
 
-### Linting and type checking
+### Running all checks
 
 ```bash
-ruff check src/
-mypy src/
+make ci       # runs lint + typecheck + tests (same as CI pipeline)
 ```
 
-### Running tests
+### Individual targets
 
 ```bash
-pytest
+make lint      # ruff check + format verification
+make typecheck # mypy strict mode
+make test      # pytest with coverage (excludes slow/Docker tests)
+make test-all  # pytest including slow tests (requires Docker)
+make format    # auto-fix formatting
 ```
+
+### CI/CD
+
+Pull requests are automatically checked by GitHub Actions:
+
+- **Lint** -- ruff check and format verification
+- **Type check** -- mypy in strict mode across all modules
+- **Test** -- 64+ mzML compliance tests with 85%+ coverage on critical output modules
+
+All three jobs must pass before a PR can be merged.
+
+## mzML Compliance
+
+The output conforms to the mzML 1.1.0 specification:
+
+- Every `<cvParam>` includes required `accession`, `cvRef="PSI-MS"`, and `value` attributes
+- Unit-bearing parameters include full triplets (`unitCvRef`, `unitAccession`, `unitName`)
+- `<binaryDataArray>` elements include `encodedLength`
+- Spectrum IDs are 1-based (`id="index=1"`)
+- All CV accessions verified against the PSI-MS controlled vocabulary
+- Indexed mzML with byte-offset spectrum index and SHA-1 file checksum
 
 ## License
 

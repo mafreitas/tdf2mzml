@@ -119,9 +119,7 @@ class TsfReader:
             return raw.get(key, default)
 
         # Frame type counts
-        frame_count: int = conn.execute(
-            "SELECT COUNT(*) FROM Frames"
-        ).fetchone()[0]
+        frame_count: int = conn.execute("SELECT COUNT(*) FROM Frames").fetchone()[0]
 
         ms1_count: int = conn.execute(
             f"SELECT COUNT(*) FROM Frames WHERE MsMsType={TSF_MSMS_TYPE_MS1}"

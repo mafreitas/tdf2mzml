@@ -57,7 +57,9 @@ def get_pasef_dda_ms2(
     scan_number = precursor.get("ScanNumber")
 
     # Retrieve peak-picked spectrum — use pre-fetched batch if available
-    ms2_result = ms2_data if ms2_data is not None else reader.read_pasef_msms([precursor_id], sparse=True)
+    ms2_result = (
+        ms2_data if ms2_data is not None else reader.read_pasef_msms([precursor_id], sparse=True)
+    )
     if precursor_id not in ms2_result:
         logger.warning("No MS2 data returned for precursor ID %d", precursor_id)
         arrays = SpectrumArrays(
@@ -74,9 +76,7 @@ def get_pasef_dda_ms2(
     # Ion mobility — use pre-computed value if supplied, else call SDK
     ook0: float | None = one_over_k0
     if ook0 is None and scan_number is not None:
-        ook0_arr = reader.scan_num_to_one_over_k0(
-            parent_frame_id, [float(scan_number)]
-        )
+        ook0_arr = reader.scan_num_to_one_over_k0(parent_frame_id, [float(scan_number)])
         ook0 = float(ook0_arr[0])
 
     # PASEF frame isolation / collision energy — use pre-fetched cache if available
@@ -149,9 +149,7 @@ def get_pasef_dia_ms2(
     mz_width = float(window[4])
     collision_energy = float(window[5])
 
-    raw_mz, raw_i = reader.extract_centroided_spectrum(
-        frame_id, scan_begin, scan_end
-    )
+    raw_mz, raw_i = reader.extract_centroided_spectrum(frame_id, scan_begin, scan_end)
     arrays = SpectrumArrays(
         mz=np.asarray(raw_mz, dtype=np.float64),
         intensity=np.asarray(raw_i, dtype=np.float32),

@@ -90,9 +90,7 @@ class ConversionConfig(BaseModel):
     end_frame: int = Field(
         DEFAULT_END_FRAME, description="Last frame to convert; -1 = last available"
     )
-    compression: Literal["none", "zlib"] = Field(
-        "none", description="Binary array compression"
-    )
+    compression: Literal["none", "zlib"] = Field("none", description="Binary array compression")
     ion_mobility: Literal["none", "mean", "perscan", "array"] = Field(
         "mean", description="Ion mobility capture strategy"
     )
@@ -141,9 +139,7 @@ class ConversionConfig(BaseModel):
             # Find the .d directory inside the extracted contents
             d_dirs = list(extract_dir.rglob("*.d"))
             if not d_dirs:
-                raise ValueError(
-                    f"No .d directory found after extracting '{path}'"
-                )
+                raise ValueError(f"No .d directory found after extracting '{path}'")
             # Use model_copy to update the immutable-ish field
             object.__setattr__(self, "input", d_dirs[0])
             path = self.input

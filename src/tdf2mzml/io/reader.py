@@ -134,9 +134,7 @@ class TdfReader:
             return raw.get(key, default)
 
         # Frame type counts
-        frame_count: int = conn.execute(
-            "SELECT COUNT(*) FROM Frames"
-        ).fetchone()[0]
+        frame_count: int = conn.execute("SELECT COUNT(*) FROM Frames").fetchone()[0]
 
         ms1_count: int = conn.execute(
             f"SELECT COUNT(*) FROM Frames WHERE MsMsType={MSMS_TYPE_MS1}"
@@ -147,9 +145,7 @@ class TdfReader:
         ).fetchone()[0]
         dda_precursor_count: int = 0
         if dda_frame_count > 0:
-            dda_precursor_count = conn.execute(
-                "SELECT COUNT(*) FROM Precursors"
-            ).fetchone()[0]
+            dda_precursor_count = conn.execute("SELECT COUNT(*) FROM Precursors").fetchone()[0]
 
         dia_count: int = conn.execute(
             f"SELECT COUNT(*) FROM Frames WHERE MsMsType={MSMS_TYPE_PASEF_DIA}"
@@ -219,7 +215,7 @@ class TdfReader:
         list of tuple
             All columns from the ``Frames`` table for MS1 frames.
         """
-        return self._tims.conn.execute(  
+        return self._tims.conn.execute(
             f"SELECT * FROM Frames WHERE MsMsType={MSMS_TYPE_MS1}"
         ).fetchall()
 
@@ -231,9 +227,7 @@ class TdfReader:
         list of tuple
             All columns from the ``Frames`` table.
         """
-        return self._tims.conn.execute(  
-            "SELECT * FROM Frames ORDER BY Id"
-        ).fetchall()
+        return self._tims.conn.execute("SELECT * FROM Frames ORDER BY Id").fetchall()
 
     def get_num_scans(self, frame_id: int) -> int:
         """Return the number of scan lines (mobility bins) in a frame.
@@ -257,9 +251,7 @@ class TdfReader:
     # Precursor queries
     # ------------------------------------------------------------------
 
-    def get_precursors_for_frame(
-        self, frame_id: int
-    ) -> list[PrecursorRow]:
+    def get_precursors_for_frame(self, frame_id: int) -> list[PrecursorRow]:
         """Return all precursors belonging to a given MS1 frame.
 
         Parameters
@@ -340,9 +332,7 @@ class TdfReader:
             "IsolationWidth": row[2],
         }
 
-    def get_pasef_frame_info_batch(
-        self, precursor_ids: list[int]
-    ) -> dict[int, dict[str, float]]:
+    def get_pasef_frame_info_batch(self, precursor_ids: list[int]) -> dict[int, dict[str, float]]:
         """Return PASEF isolation/CE info for multiple precursors in one query.
 
         Parameters
@@ -414,9 +404,7 @@ class TdfReader:
         ).fetchone()
         return int(row[0])
 
-    def get_dia_windows_for_group(
-        self, window_group: int
-    ) -> list[tuple[int, ...]]:
+    def get_dia_windows_for_group(self, window_group: int) -> list[tuple[int, ...]]:
         """Return all DIA window definitions for a window group.
 
         Parameters
@@ -429,7 +417,7 @@ class TdfReader:
         list of tuple
             All columns from ``DiaFrameMsMsWindows`` for this group.
         """
-        return self._tims.conn.execute(  
+        return self._tims.conn.execute(
             "SELECT * FROM DiaFrameMsMsWindows WHERE WindowGroup=?",
             (window_group,),
         ).fetchall()
@@ -561,9 +549,7 @@ class TdfReader:
     # SDK delegation — coordinate conversion
     # ------------------------------------------------------------------
 
-    def index_to_mz(
-        self, frame_id: int, indices: npt.ArrayLike
-    ) -> npt.NDArray[np.float64]:
+    def index_to_mz(self, frame_id: int, indices: npt.ArrayLike) -> npt.NDArray[np.float64]:
         """Convert TOF bin indices to m/z values.
 
         Parameters

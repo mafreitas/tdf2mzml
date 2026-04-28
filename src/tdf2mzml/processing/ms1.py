@@ -191,9 +191,7 @@ def get_im_resolved_ms1(
     scans = reader.read_scans(frame_id, 0, num_scans)
 
     # One batch SDK call: 1/K0 for every scan number
-    ook0_per_scan = reader.scan_num_to_one_over_k0(
-        frame_id, np.arange(num_scans, dtype=np.float64)
-    )
+    ook0_per_scan = reader.scan_num_to_one_over_k0(frame_id, np.arange(num_scans, dtype=np.float64))
 
     index_parts: list[npt.NDArray[np.uint32]] = []
     int_parts: list[npt.NDArray[np.float32]] = []
@@ -211,9 +209,7 @@ def get_im_resolved_ms1(
             scan_int = scan_int[mask]
         index_parts.append(scan_indices)
         int_parts.append(scan_int)
-        scan_id_parts.append(
-            np.full(len(scan_indices), scan_idx, dtype=np.int32)
-        )
+        scan_id_parts.append(np.full(len(scan_indices), scan_idx, dtype=np.int32))
 
     if not index_parts:
         empty_f64 = np.empty(0, dtype=np.float64)

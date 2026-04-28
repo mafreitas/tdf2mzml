@@ -101,7 +101,6 @@ select = [
 ignore = [
     "D203",  # one-blank-line-before-class (conflicts with D211)
     "D213",  # multi-line-summary-second-line (conflicts with D212)
-    "ANN101", "ANN102",  # self/cls annotations
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -112,6 +111,8 @@ convention = "numpy"
 "src/tdf2mzml/output/xml_elements.py" = ["E501"]
 # Test fixtures don't need return-type annotations
 "tests/conftest.py" = ["ANN201"]
+# Test methods don't need individual docstrings; magic methods covered by class doc
+"tests/*.py" = ["D102", "D105", "ANN201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tdf2mzml"]

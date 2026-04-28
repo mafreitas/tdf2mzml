@@ -1,4 +1,5 @@
 """Tests for MS1 spectrum extraction (centroid, profile, raw)."""
+
 from pathlib import Path
 
 import numpy as np

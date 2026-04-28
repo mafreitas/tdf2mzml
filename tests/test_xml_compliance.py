@@ -12,7 +12,6 @@ spectrum IDs, incomplete unit triplets, and wrong instrument accessions.
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
 
 import numpy as np
 import pytest
@@ -140,52 +139,38 @@ def ms1_with_im_array_bytes() -> bytes:
 class TestCvParamCompliance:
     """Verify every cvParam has required attributes per mzML 1.1.0 XSD."""
 
-    def test_every_cvparam_has_accession_ms1(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_every_cvparam_has_accession_ms1(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         assert len(params) > 0, "No cvParams found"
         for p in params:
-            assert "accession" in p, (
-                f"cvParam missing accession: name={p.get('name')}"
+            assert "accession" in p, f"cvParam missing accession: name={p.get('name')}"
+            assert p["accession"].startswith("MS:") or p["accession"].startswith("UO:"), (
+                f"Invalid accession format: {p['accession']}"
             )
-            assert p["accession"].startswith("MS:") or p["accession"].startswith(
-                "UO:"
-            ), f"Invalid accession format: {p['accession']}"
 
-    def test_every_cvparam_has_accession_ms2(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_every_cvparam_has_accession_ms2(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
         for p in params:
-            assert "accession" in p, (
-                f"cvParam missing accession: name={p.get('name')}"
-            )
+            assert "accession" in p, f"cvParam missing accession: name={p.get('name')}"
 
     def test_cvref_is_psi_ms_ms1(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         for p in params:
             assert p.get("cvRef") == "PSI-MS", (
-                f"cvRef should be 'PSI-MS', got '{p.get('cvRef')}' "
-                f"for name={p.get('name')}"
+                f"cvRef should be 'PSI-MS', got '{p.get('cvRef')}' for name={p.get('name')}"
             )
 
     def test_cvref_is_psi_ms_ms2(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
         for p in params:
             assert p.get("cvRef") == "PSI-MS", (
-                f"cvRef should be 'PSI-MS', got '{p.get('cvRef')}' "
-                f"for name={p.get('name')}"
+                f"cvRef should be 'PSI-MS', got '{p.get('cvRef')}' for name={p.get('name')}"
             )
 
-    def test_cvparam_has_value_attribute(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_cvparam_has_value_attribute(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         for p in params:
-            assert "value" in p, (
-                f"cvParam missing value attribute: name={p.get('name')}"
-            )
+            assert "value" in p, f"cvParam missing value attribute: name={p.get('name')}"
 
     def test_cv_list_uses_psi_ms_id(self) -> None:
         cv_xml = xe.cv_list().decode()
@@ -201,34 +186,26 @@ class TestCvParamCompliance:
 class TestUnitTriplets:
     """Any cvParam with unitName must have full unit triplet."""
 
-    def test_unit_params_have_full_triplet_ms1(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_unit_params_have_full_triplet_ms1(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         for p in params:
             if "unitName" in p:
                 assert "unitAccession" in p, (
-                    f"cvParam has unitName but no unitAccession: "
-                    f"name={p.get('name')}"
+                    f"cvParam has unitName but no unitAccession: name={p.get('name')}"
                 )
                 assert "unitCvRef" in p, (
-                    f"cvParam has unitName but no unitCvRef: "
-                    f"name={p.get('name')}"
+                    f"cvParam has unitName but no unitCvRef: name={p.get('name')}"
                 )
 
-    def test_unit_params_have_full_triplet_ms2(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_unit_params_have_full_triplet_ms2(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
         for p in params:
             if "unitName" in p:
                 assert "unitAccession" in p, (
-                    f"cvParam has unitName but no unitAccession: "
-                    f"name={p.get('name')}"
+                    f"cvParam has unitName but no unitAccession: name={p.get('name')}"
                 )
                 assert "unitCvRef" in p, (
-                    f"cvParam has unitName but no unitCvRef: "
-                    f"name={p.get('name')}"
+                    f"cvParam has unitName but no unitCvRef: name={p.get('name')}"
                 )
 
     def test_mz_unit_accession(self, ms1_spectrum_bytes: bytes) -> None:
@@ -245,26 +222,16 @@ class TestUnitTriplets:
         assert minute_params[0]["unitAccession"] == "UO:0000031"
         assert minute_params[0]["unitCvRef"] == "UO"
 
-    def test_electronvolt_unit_accession(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_electronvolt_unit_accession(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
-        ev_params = [
-            p for p in params if p.get("unitName") == "electronvolt"
-        ]
+        ev_params = [p for p in params if p.get("unitName") == "electronvolt"]
         assert len(ev_params) == 1
         assert ev_params[0]["unitAccession"] == "UO:0000266"
         assert ev_params[0]["unitCvRef"] == "UO"
 
-    def test_detector_counts_unit_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_detector_counts_unit_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
-        count_params = [
-            p
-            for p in params
-            if p.get("unitName") == "number of detector counts"
-        ]
+        count_params = [p for p in params if p.get("unitName") == "number of detector counts"]
         assert len(count_params) == 1
         assert count_params[0]["unitAccession"] == "MS:1000131"
 
@@ -277,20 +244,14 @@ class TestUnitTriplets:
 class TestEncodedLength:
     """Every binaryDataArray must have encodedLength matching binary content."""
 
-    def test_binary_data_array_has_encoded_length(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_binary_data_array_has_encoded_length(self, ms1_spectrum_bytes: bytes) -> None:
         bda_tags = _find_all_tags(ms1_spectrum_bytes, "binaryDataArray")
         assert len(bda_tags) >= 2, "Expected at least 2 binaryDataArrays"
         for tag in bda_tags:
-            assert "encodedLength" in tag, (
-                "binaryDataArray missing encodedLength attribute"
-            )
+            assert "encodedLength" in tag, "binaryDataArray missing encodedLength attribute"
             assert int(tag["encodedLength"]) > 0
 
-    def test_encoded_length_matches_binary_content(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_encoded_length_matches_binary_content(self, ms1_spectrum_bytes: bytes) -> None:
         text = ms1_spectrum_bytes.decode()
         # Find all <binary>...</binary> content and corresponding encodedLength
         binary_re = re.compile(
@@ -301,21 +262,16 @@ class TestEncodedLength:
         assert len(matches) >= 2
         for declared_len, b64_content in matches:
             assert int(declared_len) == len(b64_content), (
-                f"encodedLength={declared_len} but base64 has "
-                f"{len(b64_content)} chars"
+                f"encodedLength={declared_len} but base64 has {len(b64_content)} chars"
             )
 
-    def test_im_array_has_encoded_length(
-        self, ms1_with_im_array_bytes: bytes
-    ) -> None:
+    def test_im_array_has_encoded_length(self, ms1_with_im_array_bytes: bytes) -> None:
         bda_tags = _find_all_tags(ms1_with_im_array_bytes, "binaryDataArray")
         assert len(bda_tags) == 3, "Expected 3 binaryDataArrays (mz, int, IM)"
         for tag in bda_tags:
             assert "encodedLength" in tag
 
-    def test_zlib_compressed_encoded_length(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_zlib_compressed_encoded_length(self, ms2_spectrum_bytes: bytes) -> None:
         bda_tags = _find_all_tags(ms2_spectrum_bytes, "binaryDataArray")
         assert len(bda_tags) >= 2
         for tag in bda_tags:
@@ -331,19 +287,13 @@ class TestEncodedLength:
 class TestSpectrumIds:
     """Spectrum id attribute must use 1-based indexing."""
 
-    def test_spectrum_id_is_one_based(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_spectrum_id_is_one_based(self, ms1_spectrum_bytes: bytes) -> None:
         text = ms1_spectrum_bytes.decode()
         # index=0 in the XML attribute, but id should be "index=1"
         assert 'index="0"' in text, "index attribute should be 0-based"
-        assert 'id="index=1"' in text, (
-            "id should be 1-based (index=1 for first spectrum)"
-        )
+        assert 'id="index=1"' in text, "id should be 1-based (index=1 for first spectrum)"
 
-    def test_ms2_precursor_ref_matches_parent(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_ms2_precursor_ref_matches_parent(self, ms2_spectrum_bytes: bytes) -> None:
         text = ms2_spectrum_bytes.decode()
         assert 'spectrumRef="index=1"' in text
 
@@ -406,18 +356,12 @@ class TestSoftwareList:
 
     def test_tdf2mzml_entry(self, software_xml: bytes) -> None:
         params = _find_all_cvparams(software_xml)
-        tool = [
-            p
-            for p in params
-            if p.get("name") == "custom unreleased software tool"
-        ]
+        tool = [p for p in params if p.get("name") == "custom unreleased software tool"]
         assert len(tool) == 1
         assert tool[0]["accession"] == "MS:1000799"
         assert tool[0]["value"] == "tdf2mzml"
 
-    def test_tdf2mzml_has_python_userparam(
-        self, software_xml: bytes
-    ) -> None:
+    def test_tdf2mzml_has_python_userparam(self, software_xml: bytes) -> None:
         text = software_xml.decode()
         assert 'name="python"' in text
         assert 'value="3.12.0"' in text
@@ -444,25 +388,15 @@ class TestInstrumentConfig:
             instrument_vendor="Bruker",
         )
 
-    def test_instrument_model_accession(
-        self, instrument_xml: bytes
-    ) -> None:
+    def test_instrument_model_accession(self, instrument_xml: bytes) -> None:
         params = _find_all_cvparams(instrument_xml)
-        model = [
-            p
-            for p in params
-            if p.get("name") == "Bruker Daltonics instrument model"
-        ]
+        model = [p for p in params if p.get("name") == "Bruker Daltonics instrument model"]
         assert len(model) == 1
         assert model[0]["accession"] == "MS:1000122"
 
     def test_serial_number_accession(self, instrument_xml: bytes) -> None:
         params = _find_all_cvparams(instrument_xml)
-        serial = [
-            p
-            for p in params
-            if p.get("name") == "instrument serial number"
-        ]
+        serial = [p for p in params if p.get("name") == "instrument serial number"]
         assert len(serial) == 1
         assert serial[0]["accession"] == "MS:1000529"
         assert serial[0]["value"] == "12345"
@@ -475,11 +409,7 @@ class TestInstrumentConfig:
 
     def test_esi_accession(self, instrument_xml: bytes) -> None:
         params = _find_all_cvparams(instrument_xml)
-        esi = [
-            p
-            for p in params
-            if p.get("name") == "electrospray ionization"
-        ]
+        esi = [p for p in params if p.get("name") == "electrospray ionization"]
         assert len(esi) == 1
         assert esi[0]["accession"] == "MS:1000073"
 
@@ -497,11 +427,7 @@ class TestInstrumentConfig:
 
     def test_mcp_detector_accession(self, instrument_xml: bytes) -> None:
         params = _find_all_cvparams(instrument_xml)
-        mcp = [
-            p
-            for p in params
-            if p.get("name") == "microchannel plate detector"
-        ]
+        mcp = [p for p in params if p.get("name") == "microchannel plate detector"]
         assert len(mcp) == 1
         assert mcp[0]["accession"] == "MS:1000114"
 
@@ -566,11 +492,7 @@ class TestFileDescription:
 
     def test_native_id_format_accession(self, filedesc_xml: bytes) -> None:
         params = _find_all_cvparams(filedesc_xml)
-        nid = [
-            p
-            for p in params
-            if p.get("name") == "Bruker TDF nativeID format"
-        ]
+        nid = [p for p in params if p.get("name") == "Bruker TDF nativeID format"]
         assert len(nid) == 1
         assert nid[0]["accession"] == "MS:1002818"
 
@@ -599,33 +521,17 @@ class TestDataProcessing:
 class TestPrecursorStructure:
     """MS2 precursor section must have correct accessions and units."""
 
-    def test_isolation_window_target_accession(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_isolation_window_target_accession(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
-        target = [
-            p
-            for p in params
-            if p.get("name") == "isolation window target m/z"
-        ]
+        target = [p for p in params if p.get("name") == "isolation window target m/z"]
         assert len(target) == 1
         assert target[0]["accession"] == "MS:1000827"
         assert target[0]["unitAccession"] == "MS:1000040"
 
-    def test_isolation_window_offsets(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_isolation_window_offsets(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
-        lower = [
-            p
-            for p in params
-            if p.get("name") == "isolation window lower offset"
-        ]
-        upper = [
-            p
-            for p in params
-            if p.get("name") == "isolation window upper offset"
-        ]
+        lower = [p for p in params if p.get("name") == "isolation window lower offset"]
+        upper = [p for p in params if p.get("name") == "isolation window upper offset"]
         assert len(lower) == 1
         assert lower[0]["accession"] == "MS:1000828"
         assert len(upper) == 1
@@ -645,15 +551,9 @@ class TestPrecursorStructure:
         assert charge[0]["accession"] == "MS:1000041"
         assert charge[0]["value"] == "2"
 
-    def test_collision_induced_dissociation(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_collision_induced_dissociation(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
-        cid = [
-            p
-            for p in params
-            if p.get("name") == "collision-induced dissociation"
-        ]
+        cid = [p for p in params if p.get("name") == "collision-induced dissociation"]
         assert len(cid) == 1
         assert cid[0]["accession"] == "MS:1000133"
 
@@ -676,43 +576,21 @@ class TestIonMobility:
 
     def test_scan_level_ook0(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
-        ook0 = [
-            p
-            for p in params
-            if p.get("name") == "mean inverse reduced ion mobility"
-        ]
+        ook0 = [p for p in params if p.get("name") == "mean inverse reduced ion mobility"]
         assert len(ook0) == 1
         assert ook0[0]["accession"] == "MS:1002814"
         assert ook0[0]["unitName"] == "volt-second per square centimeter"
 
-    def test_im_array_accession(
-        self, ms1_with_im_array_bytes: bytes
-    ) -> None:
+    def test_im_array_accession(self, ms1_with_im_array_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_with_im_array_bytes)
-        im_arr = [
-            p
-            for p in params
-            if p.get("name") == "mean inverse reduced ion mobility array"
-        ]
+        im_arr = [p for p in params if p.get("name") == "mean inverse reduced ion mobility array"]
         assert len(im_arr) == 1
         assert im_arr[0]["accession"] == "MS:1002816"
 
-    def test_im_window_limits(
-        self, ms1_with_im_array_bytes: bytes
-    ) -> None:
+    def test_im_window_limits(self, ms1_with_im_array_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_with_im_array_bytes)
-        lower = [
-            p
-            for p in params
-            if p.get("name")
-            == "inverse reduced ion mobility lower limit"
-        ]
-        upper = [
-            p
-            for p in params
-            if p.get("name")
-            == "inverse reduced ion mobility upper limit"
-        ]
+        lower = [p for p in params if p.get("name") == "inverse reduced ion mobility lower limit"]
+        upper = [p for p in params if p.get("name") == "inverse reduced ion mobility upper limit"]
         assert len(lower) == 1
         assert lower[0]["accession"] == "MS:1002476"
         assert len(upper) == 1
@@ -734,17 +612,13 @@ class TestSpectrumCvTerms:
         assert level[0]["accession"] == "MS:1000511"
         assert level[0]["value"] == "1"
 
-    def test_centroid_spectrum_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_centroid_spectrum_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         cs = [p for p in params if p.get("name") == "centroid spectrum"]
         assert len(cs) == 1
         assert cs[0]["accession"] == "MS:1000127"
 
-    def test_positive_scan_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_positive_scan_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         ps = [p for p in params if p.get("name") == "positive scan"]
         assert len(ps) == 1
@@ -756,55 +630,39 @@ class TestSpectrumCvTerms:
         assert len(tic) == 1
         assert tic[0]["accession"] == "MS:1000285"
 
-    def test_base_peak_mz_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_base_peak_mz_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         bp = [p for p in params if p.get("name") == "base peak m/z"]
         assert len(bp) == 1
         assert bp[0]["accession"] == "MS:1000504"
 
-    def test_base_peak_intensity_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_base_peak_intensity_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         bp = [p for p in params if p.get("name") == "base peak intensity"]
         assert len(bp) == 1
         assert bp[0]["accession"] == "MS:1000505"
 
-    def test_no_combination_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_no_combination_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         nc = [p for p in params if p.get("name") == "no combination"]
         assert len(nc) == 1
         assert nc[0]["accession"] == "MS:1000795"
 
-    def test_scan_start_time_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_scan_start_time_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         sst = [p for p in params if p.get("name") == "scan start time"]
         assert len(sst) == 1
         assert sst[0]["accession"] == "MS:1000016"
 
-    def test_scan_window_lower_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_scan_window_lower_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
-        sw = [
-            p for p in params if p.get("name") == "scan window lower limit"
-        ]
+        sw = [p for p in params if p.get("name") == "scan window lower limit"]
         assert len(sw) == 1
         assert sw[0]["accession"] == "MS:1000501"
 
-    def test_scan_window_upper_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_scan_window_upper_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
-        sw = [
-            p for p in params if p.get("name") == "scan window upper limit"
-        ]
+        sw = [p for p in params if p.get("name") == "scan window upper limit"]
         assert len(sw) == 1
         assert sw[0]["accession"] == "MS:1000500"
 
@@ -814,42 +672,32 @@ class TestSpectrumCvTerms:
         assert len(mza) == 1
         assert mza[0]["accession"] == "MS:1000514"
 
-    def test_intensity_array_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_intensity_array_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         ia = [p for p in params if p.get("name") == "intensity array"]
         assert len(ia) == 1
         assert ia[0]["accession"] == "MS:1000515"
 
-    def test_64bit_float_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_64bit_float_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         f64 = [p for p in params if p.get("name") == "64-bit float"]
         assert len(f64) == 1
         assert f64[0]["accession"] == "MS:1000523"
 
-    def test_32bit_float_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_32bit_float_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         f32 = [p for p in params if p.get("name") == "32-bit float"]
         assert len(f32) == 1
         assert f32[0]["accession"] == "MS:1000521"
 
-    def test_no_compression_accession(
-        self, ms1_spectrum_bytes: bytes
-    ) -> None:
+    def test_no_compression_accession(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
         nc = [p for p in params if p.get("name") == "no compression"]
         assert len(nc) == 2, "Expected 2 (one per binary array: mz + intensity)"
         for p in nc:
             assert p["accession"] == "MS:1000576"
 
-    def test_zlib_compression_accession(
-        self, ms2_spectrum_bytes: bytes
-    ) -> None:
+    def test_zlib_compression_accession(self, ms2_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms2_spectrum_bytes)
         zc = [p for p in params if p.get("name") == "zlib compression"]
         assert len(zc) >= 1

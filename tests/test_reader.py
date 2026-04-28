@@ -1,4 +1,5 @@
 """Tests for TdfReader metadata and SQL queries."""
+
 from pathlib import Path
 
 import pytest

@@ -96,10 +96,12 @@ class BafReader:
         """Release all SDK resources."""
         self._baf.close()
 
-    def __enter__(self) -> "BafReader":
+    def __enter__(self) -> BafReader:
+        """Enter context manager."""
         return self
 
     def __exit__(self, *_: object) -> None:
+        """Exit context manager and release resources."""
         self.close()
 
     # ------------------------------------------------------------------
@@ -117,9 +119,7 @@ class BafReader:
         conn = self._baf.conn
 
         def _prop(key: str, default: str = "") -> str:
-            row = conn.execute(
-                "SELECT Value FROM Properties WHERE Key=?", (key,)
-            ).fetchone()
+            row = conn.execute("SELECT Value FROM Properties WHERE Key=?", (key,)).fetchone()
             return str(row[0]) if row and row[0] is not None else default
 
         # Spectrum counts
@@ -182,7 +182,23 @@ class BafReader:
     # Spectrum enumeration
     # ------------------------------------------------------------------
 
-    def get_all_spectra(self) -> list[tuple[int, float, int | None, float, float, int | None, int | None, int | None, int | None, int, int]]:
+    def get_all_spectra(
+        self,
+    ) -> list[
+        tuple[
+            int,
+            float,
+            int | None,
+            float,
+            float,
+            int | None,
+            int | None,
+            int | None,
+            int | None,
+            int,
+            int,
+        ]
+    ]:
         """Return all spectra ordered by Id.
 
         Each row:

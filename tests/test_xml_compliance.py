@@ -18,6 +18,11 @@ import pytest
 
 from tdf2mzml.output import xml_elements as xe
 
+try:
+    from lxml import etree
+except ImportError:  # pragma: no cover - local fallback when lxml is unavailable
+    import xml.etree.ElementTree as etree  # type: ignore[no-redef]  # noqa: N813
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -129,6 +134,29 @@ def ms1_with_im_array_bytes() -> bytes:
         ook0_window_lower=0.6,
         ook0_window_upper=1.6,
     )
+
+
+# ===================================================================
+# XML escaping
+# ===================================================================
+
+
+class TestXmlEscaping:
+    """XML builders must escape attribute values, including quotes."""
+
+    def test_xml_attr_escapes_double_quotes(self) -> None:
+        assert xe._xml_attr('a"b') == "a&quot;b"
+        assert xe._xml_attr("plain") == "plain"
+        assert xe._xml_attr('he said "hi" & ok') == "he said &quot;hi&quot; &amp; ok"
+
+    def test_sample_description_with_quotes_is_well_formed(self) -> None:
+        xml_bytes = xe.sample_list("sample one", 'sample "alpha" & beta')
+
+        root = etree.fromstring(xml_bytes)
+        description = root.find("sample/userParam")
+
+        assert description is not None
+        assert description.get("value") == 'sample "alpha" & beta'
 
 
 # ===================================================================

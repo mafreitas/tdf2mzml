@@ -9,6 +9,9 @@ All notable changes to tdf2mzml are documented in this file.
 - **Ion mobility cvParam** (#32) — per-spectrum scan element now emits the correct PSI-MS scalar term `MS:1002815 "inverse reduced ion mobility"`. Previously emitted `MS:1002814` (the unit `volt-second per square centimeter`) as both term and unit accession, and used the non-standard name `mean inverse reduced ion mobility`. Verified against the PSI-MS OBO.
 - **SQL `IN (...)` chunking for Windows** (#31) — Bruker `.d` files with >32,766 DDA precursors no longer fail on Windows. CPython on Windows ships SQLite with `SQLITE_MAX_VARIABLE_NUMBER=32766`; the five SQL sites in the PASEF/TDF, TSF, and BAF readers now route through a shared `batched_in_query()` helper that splits IN-clause params into chunks of 500.
 
+### Removed
+- Stale `requirements.txt` from the v0.3 era (pinned `lxml==4.6.3`, `numpy==1.18.3`, `psims`, `matplotlib`, `pandas`, `SQLAlchemy` — none of which are used post-v0.5). The file was unreferenced by `Dockerfile`, `Makefile`, CI, and `pyproject.toml`. Removal closes 7 dependabot alerts (2 high, 5 medium) that all targeted those obsolete pins.
+
 ## [0.6.0] — 2026-04-28
 
 ### Added

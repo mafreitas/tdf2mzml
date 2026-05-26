@@ -2,6 +2,13 @@
 
 All notable changes to tdf2mzml are documented in this file.
 
+## [0.6.1] — 2026-05-26
+
+### Fixed
+- **XML attribute escaping** (#33) — values containing `"` no longer break the surrounding attribute. Affects sample descriptions, source-file paths, software fields, instrument names, and other attribute-bound strings. Adds an `_xml_attr()` helper applied at every attribute-bound escape site in `output/xml_elements.py`.
+- **Ion mobility cvParam** (#32) — per-spectrum scan element now emits the correct PSI-MS scalar term `MS:1002815 "inverse reduced ion mobility"`. Previously emitted `MS:1002814` (the unit `volt-second per square centimeter`) as both term and unit accession, and used the non-standard name `mean inverse reduced ion mobility`. Verified against the PSI-MS OBO.
+- **SQL `IN (...)` chunking for Windows** (#31) — Bruker `.d` files with >32,766 DDA precursors no longer fail on Windows. CPython on Windows ships SQLite with `SQLITE_MAX_VARIABLE_NUMBER=32766`; the five SQL sites in the PASEF/TDF, TSF, and BAF readers now route through a shared `batched_in_query()` helper that splits IN-clause params into chunks of 500.
+
 ## [0.6.0] — 2026-04-28
 
 ### Added

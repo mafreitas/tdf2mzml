@@ -36,6 +36,7 @@ from tdf2mzml.constants import (
     META_SCHEMA_VERSION_MAJOR,
     META_SCHEMA_VERSION_MINOR,
 )
+from tdf2mzml.io._sql import batched_in_query
 from tdf2mzml.io.timsdata import TsfData
 from tdf2mzml.models.metadata import AcquisitionMetadata
 
@@ -234,15 +235,13 @@ class TsfReader:
             Mapping frame_id → info dict (same structure as
             :meth:`get_ms2_info_for_frame`).
         """
-        if not frame_ids:
-            return {}
-        placeholders = ",".join("?" * len(frame_ids))
-        rows = self._tsf.conn.execute(
-            f"SELECT Frame, Parent, TriggerMass, IsolationWidth, "
-            f"PrecursorCharge, CollisionEnergy "
-            f"FROM FrameMsMsInfo WHERE Frame IN ({placeholders})",
+        rows = batched_in_query(
+            self._tsf.conn,
+            "SELECT Frame, Parent, TriggerMass, IsolationWidth, "
+            "PrecursorCharge, CollisionEnergy "
+            "FROM FrameMsMsInfo WHERE Frame IN ({placeholders})",
             frame_ids,
-        ).fetchall()
+        )
         return {
             int(r[0]): {
                 "Frame": int(r[0]),
@@ -268,13 +267,11 @@ class TsfReader:
         dict
             Mapping frame_id → parent MS1 frame ID.
         """
-        if not frame_ids:
-            return {}
-        placeholders = ",".join("?" * len(frame_ids))
-        rows = self._tsf.conn.execute(
-            f"SELECT Frame, Parent FROM FrameMsMsInfo WHERE Frame IN ({placeholders})",
+        rows = batched_in_query(
+            self._tsf.conn,
+            "SELECT Frame, Parent FROM FrameMsMsInfo WHERE Frame IN ({placeholders})",
             frame_ids,
-        ).fetchall()
+        )
         return {int(r[0]): int(r[1]) for r in rows}
 
     # ------------------------------------------------------------------

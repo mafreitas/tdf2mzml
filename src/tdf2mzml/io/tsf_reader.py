@@ -7,6 +7,7 @@ TSF (timsTOF fleX / TIMS-off) files use ``analysis.tsf`` instead of
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -118,9 +119,7 @@ class TsfReader:
             return raw.get(key, default)
 
         # Frame type counts
-        frame_count: int = conn.execute(
-            "SELECT COUNT(*) FROM Frames"
-        ).fetchone()[0]
+        frame_count: int = conn.execute("SELECT COUNT(*) FROM Frames").fetchone()[0]
 
         ms1_count: int = conn.execute(
             f"SELECT COUNT(*) FROM Frames WHERE MsMsType={TSF_MSMS_TYPE_MS1}"
@@ -172,7 +171,7 @@ class TsfReader:
     # Frame queries
     # ------------------------------------------------------------------
 
-    def get_all_frames(self) -> list[tuple]:
+    def get_all_frames(self) -> list[tuple[int, float, int, int, int]]:
         """Return all frame rows ordered by ID.
 
         Returns
@@ -189,7 +188,7 @@ class TsfReader:
     # MS2 / FrameMsMsInfo queries
     # ------------------------------------------------------------------
 
-    def get_ms2_info_for_frame(self, frame_id: int) -> dict | None:
+    def get_ms2_info_for_frame(self, frame_id: int) -> dict[str, Any] | None:
         """Return MS2 isolation and collision energy info for a TSF MS2 frame.
 
         Parameters
@@ -221,7 +220,7 @@ class TsfReader:
             "CollisionEnergy": float(row[5]) if row[5] is not None else 0.0,
         }
 
-    def get_ms2_info_batch(self, frame_ids: list[int]) -> dict[int, dict]:
+    def get_ms2_info_batch(self, frame_ids: list[int]) -> dict[int, dict[str, Any]]:
         """Return MS2 info for multiple frames in a single SQL query.
 
         Parameters

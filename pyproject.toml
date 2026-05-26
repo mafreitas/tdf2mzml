@@ -1,6 +1,6 @@
 [project]
 name = "tdf2mzml"
-version = "0.5.0"
+version = "0.6.0"
 description = "Convert Bruker TimsTOF TDF files to indexed mzML"
 authors = [{name = "Michael A. Freitas", email = "mike.freitas@gmail.com"}]
 readme = "README.md"
@@ -101,7 +101,6 @@ select = [
 ignore = [
     "D203",  # one-blank-line-before-class (conflicts with D211)
     "D213",  # multi-line-summary-second-line (conflicts with D212)
-    "ANN101", "ANN102",  # self/cls annotations
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -112,6 +111,8 @@ convention = "numpy"
 "src/tdf2mzml/output/xml_elements.py" = ["E501"]
 # Test fixtures don't need return-type annotations
 "tests/conftest.py" = ["ANN201"]
+# Test methods don't need individual docstrings; magic methods covered by class doc
+"tests/*.py" = ["D102", "D105", "ANN201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tdf2mzml"]
@@ -123,3 +124,24 @@ known-first-party = ["tdf2mzml"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (docker, integration — skipped in CI)",
+]
+
+# ---------------------------------------------------------------------------
+# coverage
+# ---------------------------------------------------------------------------
+
+[tool.coverage.run]
+source = ["tdf2mzml"]
+
+[tool.coverage.report]
+show_missing = true
+# Full-suite coverage target; CI runs without TDF SDK/data so only
+# xml_elements, constants, encoding, and models are exercised.
+# The integration tests (test_conversion, test_ms1, test_reader) cover
+# the IO and processing modules when run locally with test data.
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+]

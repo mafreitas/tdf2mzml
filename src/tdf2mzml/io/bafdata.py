@@ -29,8 +29,8 @@ import numpy.typing as npt
 _LIBS_DIR = Path(__file__).parent.parent / "libs"
 
 _LIB_CANDIDATES = [
-    _LIBS_DIR / "libbaf2sql_c.so",   # Linux
-    _LIBS_DIR / "baf2sql_c.dll",     # Windows 64-bit
+    _LIBS_DIR / "libbaf2sql_c.so",  # Linux
+    _LIBS_DIR / "baf2sql_c.dll",  # Windows 64-bit
 ]
 
 _lib: ctypes.CDLL | None = None
@@ -42,8 +42,7 @@ def _load_library() -> ctypes.CDLL:
         if candidate.exists():
             return ctypes.cdll.LoadLibrary(str(candidate))
     raise RuntimeError(
-        "libbaf2sql_c not found; expected one of: "
-        + ", ".join(str(p) for p in _LIB_CANDIDATES)
+        "libbaf2sql_c not found; expected one of: " + ", ".join(str(p) for p in _LIB_CANDIDATES)
     )
 
 
@@ -52,7 +51,10 @@ def _configure_signatures(lib: ctypes.CDLL) -> None:
     # baf2sql_get_sqlite_cache_filename_v2(buf, buf_len, baf_path, ignore_calib)
     # Returns required buffer length; 0 on error.
     lib.baf2sql_get_sqlite_cache_filename_v2.argtypes = [
-        ctypes.c_char_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+        ctypes.c_int,
     ]
     lib.baf2sql_get_sqlite_cache_filename_v2.restype = ctypes.c_uint32
 
@@ -67,12 +69,16 @@ def _configure_signatures(lib: ctypes.CDLL) -> None:
     lib.baf2sql_get_last_error_string.restype = ctypes.c_uint32
 
     lib.baf2sql_array_get_num_elements.argtypes = [
-        ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        ctypes.POINTER(ctypes.c_uint64),
     ]
     lib.baf2sql_array_get_num_elements.restype = ctypes.c_int
 
     lib.baf2sql_array_read_double.argtypes = [
-        ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(ctypes.c_double),
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        ctypes.POINTER(ctypes.c_double),
     ]
     lib.baf2sql_array_read_double.restype = ctypes.c_int
 
@@ -140,9 +146,7 @@ class BafData:
         )
         if self._handle == 0:
             self.conn.close()
-            raise RuntimeError(
-                f"baf2sql_array_open_storage failed: {_last_error(self._lib)}"
-            )
+            raise RuntimeError(f"baf2sql_array_open_storage failed: {_last_error(self._lib)}")
 
     def close(self) -> None:
         """Release the binary storage handle and close the SQLite connection."""
@@ -170,12 +174,8 @@ class BafData:
             If the SDK call fails.
         """
         n = ctypes.c_uint64(0)
-        if not self._lib.baf2sql_array_get_num_elements(
-            self._handle, array_id, ctypes.byref(n)
-        ):
-            raise RuntimeError(
-                f"baf2sql_array_get_num_elements failed: {_last_error(self._lib)}"
-            )
+        if not self._lib.baf2sql_array_get_num_elements(self._handle, array_id, ctypes.byref(n)):
+            raise RuntimeError(f"baf2sql_array_get_num_elements failed: {_last_error(self._lib)}")
         if n.value == 0:
             return np.empty(0, dtype=np.float64)
         out = np.empty(n.value, dtype=np.float64)
@@ -184,7 +184,5 @@ class BafData:
             array_id,
             out.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         ):
-            raise RuntimeError(
-                f"baf2sql_array_read_double failed: {_last_error(self._lib)}"
-            )
+            raise RuntimeError(f"baf2sql_array_read_double failed: {_last_error(self._lib)}")
         return out

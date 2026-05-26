@@ -83,67 +83,117 @@ _dll.tims_get_calibration_id.restype = c_uint32
 
 # raw scan reading
 _dll.tims_read_scans_v2.argtypes = [
-    c_uint64, c_int64, c_uint32, c_uint32, c_void_p, c_uint32,
+    c_uint64,
+    c_int64,
+    c_uint32,
+    c_uint32,
+    c_void_p,
+    c_uint32,
 ]
 _dll.tims_read_scans_v2.restype = c_uint32
 
 # callback functor types
-_MSMS_FUNCTOR = CFUNCTYPE(
-    None, c_int64, c_uint32, POINTER(c_double), POINTER(c_float)
-)
+_MSMS_FUNCTOR = CFUNCTYPE(None, c_int64, c_uint32, POINTER(c_double), POINTER(c_float))
 _MSMS_PROFILE_FUNCTOR = CFUNCTYPE(None, c_int64, c_uint32, POINTER(c_int32))
 
 # PASEF MS/MS — v2 (sparse, recommended) and v2_2024 (dense)
 _dll.tims_read_pasef_msms_v2.argtypes = [
-    c_uint64, POINTER(c_int64), c_uint32, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    POINTER(c_int64),
+    c_uint32,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_read_pasef_msms_v2.restype = c_uint32
 _dll.tims_read_pasef_msms_for_frame_v2.argtypes = [
-    c_uint64, c_int64, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    c_int64,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_read_pasef_msms_for_frame_v2.restype = c_uint32
 _dll.tims_read_pasef_msms_v2_2024.argtypes = [
-    c_uint64, POINTER(c_int64), c_uint32, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    POINTER(c_int64),
+    c_uint32,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_read_pasef_msms_v2_2024.restype = c_uint32
 _dll.tims_read_pasef_msms_for_frame_v2_2024.argtypes = [
-    c_uint64, c_int64, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    c_int64,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_read_pasef_msms_for_frame_v2_2024.restype = c_uint32
 
 # PASEF profile MS/MS
 _dll.tims_read_pasef_profile_msms.argtypes = [
-    c_uint64, POINTER(c_int64), c_uint32, _MSMS_PROFILE_FUNCTOR,
+    c_uint64,
+    POINTER(c_int64),
+    c_uint32,
+    _MSMS_PROFILE_FUNCTOR,
 ]
 _dll.tims_read_pasef_profile_msms.restype = c_uint32
 _dll.tims_read_pasef_profile_msms_for_frame.argtypes = [
-    c_uint64, c_int64, _MSMS_PROFILE_FUNCTOR,
+    c_uint64,
+    c_int64,
+    _MSMS_PROFILE_FUNCTOR,
 ]
 _dll.tims_read_pasef_profile_msms_for_frame.restype = c_uint32
 
 # centroid extraction — v2 (dense), v3 (sparse), ext variants (custom resolution)
 _dll.tims_extract_centroided_spectrum_for_frame_v2.argtypes = [
-    c_uint64, c_int64, c_uint32, c_uint32, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    c_int64,
+    c_uint32,
+    c_uint32,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_extract_centroided_spectrum_for_frame_v2.restype = c_uint32
 _dll.tims_extract_centroided_spectrum_for_frame_v3.argtypes = [
-    c_uint64, c_int64, c_uint32, c_uint32, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    c_int64,
+    c_uint32,
+    c_uint32,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_extract_centroided_spectrum_for_frame_v3.restype = c_uint32
 _dll.tims_extract_centroided_spectrum_for_frame_ext.argtypes = [
-    c_uint64, c_int64, c_uint32, c_uint32, c_double, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    c_int64,
+    c_uint32,
+    c_uint32,
+    c_double,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_extract_centroided_spectrum_for_frame_ext.restype = c_uint32
 _dll.tims_extract_centroided_spectrum_for_frame_ext_v3.argtypes = [
-    c_uint64, c_int64, c_uint32, c_uint32, c_double, _MSMS_FUNCTOR, c_void_p,
+    c_uint64,
+    c_int64,
+    c_uint32,
+    c_uint32,
+    c_double,
+    _MSMS_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_extract_centroided_spectrum_for_frame_ext_v3.restype = c_uint32
 
 # profile extraction
 _dll.tims_extract_profile_for_frame.argtypes = [
-    c_uint64, c_int64, c_uint32, c_uint32, _MSMS_PROFILE_FUNCTOR, c_void_p,
+    c_uint64,
+    c_int64,
+    c_uint32,
+    c_uint32,
+    _MSMS_PROFILE_FUNCTOR,
+    c_void_p,
 ]
 _dll.tims_extract_profile_for_frame.restype = c_uint32
+
 
 # chromatogram extraction
 class ChromatogramJob(Structure):
@@ -159,12 +209,16 @@ class ChromatogramJob(Structure):
         ("ook0_max", c_double),
     ]
 
+
 _CHROM_JOB_GEN = CFUNCTYPE(c_uint32, POINTER(ChromatogramJob), c_void_p)
 _CHROM_TRACE_SINK = CFUNCTYPE(
     c_uint32, c_int64, c_uint32, POINTER(c_int64), POINTER(c_uint64), c_void_p
 )
 _dll.tims_extract_chromatograms.argtypes = [
-    c_uint64, _CHROM_JOB_GEN, _CHROM_TRACE_SINK, c_void_p,
+    c_uint64,
+    _CHROM_JOB_GEN,
+    _CHROM_TRACE_SINK,
+    c_void_p,
 ]
 _dll.tims_extract_chromatograms.restype = c_uint32
 
@@ -207,7 +261,7 @@ _dll.tsf_read_profile_spectrum_v2.restype = c_uint32
 
 # TSF coordinate conversion
 _TSF_CONV_ARGS = [c_uint64, c_int64, POINTER(c_double), POINTER(c_double), c_uint32]
-_dll.tsf_index_to_mz.argtypes = _TSF_CONV_ARGS
+_dll.tsf_index_to_mz.argtypes = _TSF_CONV_ARGS  # type: ignore[assignment]
 _dll.tsf_index_to_mz.restype = c_uint32
 
 # ---------------------------------------------------------------------------
@@ -359,9 +413,7 @@ class TimsData:
         )
 
     @classmethod
-    def from_recalibration_id(
-        cls, analysis_directory: str, recalibration_id: str
-    ) -> "TimsData":
+    def from_recalibration_id(cls, analysis_directory: str, recalibration_id: str) -> "TimsData":
         """Open a dataset using a specific recalibration ID.
 
         Parameters
@@ -430,9 +482,7 @@ class TimsData:
     # Coordinate conversions
     # ------------------------------------------------------------------
 
-    def index_to_mz(
-        self, frame_id: int, indices: npt.ArrayLike
-    ) -> npt.NDArray[np.float64]:
+    def index_to_mz(self, frame_id: int, indices: npt.ArrayLike) -> npt.NDArray[np.float64]:
         """Convert raw TOF bin indices to m/z values.
 
         Parameters
@@ -449,9 +499,7 @@ class TimsData:
         """
         return self._convert(frame_id, indices, self._dll.tims_index_to_mz)
 
-    def mz_to_index(
-        self, frame_id: int, mzs: npt.ArrayLike
-    ) -> npt.NDArray[np.float64]:
+    def mz_to_index(self, frame_id: int, mzs: npt.ArrayLike) -> npt.NDArray[np.float64]:
         """Convert m/z values to raw TOF bin indices.
 
         Parameters
@@ -485,9 +533,7 @@ class TimsData:
         numpy.ndarray
             1/K0 values in V·s/cm² (float64).
         """
-        return self._convert(
-            frame_id, scan_nums, self._dll.tims_scannum_to_oneoverk0
-        )
+        return self._convert(frame_id, scan_nums, self._dll.tims_scannum_to_oneoverk0)
 
     def one_over_k0_to_scan_num(
         self, frame_id: int, mobilities: npt.ArrayLike
@@ -506,9 +552,7 @@ class TimsData:
         numpy.ndarray
             Scan line indices (float64).
         """
-        return self._convert(
-            frame_id, mobilities, self._dll.tims_oneoverk0_to_scannum
-        )
+        return self._convert(frame_id, mobilities, self._dll.tims_oneoverk0_to_scannum)
 
     def scan_num_to_voltage(
         self, frame_id: int, scan_nums: npt.ArrayLike
@@ -527,9 +571,7 @@ class TimsData:
         numpy.ndarray
             Voltage values (float64).
         """
-        return self._convert(
-            frame_id, scan_nums, self._dll.tims_scannum_to_voltage
-        )
+        return self._convert(frame_id, scan_nums, self._dll.tims_scannum_to_voltage)
 
     # ------------------------------------------------------------------
     # Raw scan reading
@@ -716,11 +758,7 @@ class TimsData:
                 np.array(area_ptr[:n], dtype=np.float32),
             )
 
-        fn = (
-            self._dll.tims_read_pasef_msms_v2
-            if sparse
-            else self._dll.tims_read_pasef_msms_v2_2024
-        )
+        fn = self._dll.tims_read_pasef_msms_v2 if sparse else self._dll.tims_read_pasef_msms_v2_2024
         ok = fn(
             self.handle,
             precursors_arr.ctypes.data_as(POINTER(c_int64)),
@@ -858,9 +896,13 @@ class TimsData:
         if ok == 0:
             _raise_last_error()
 
-        return result if result is not None else (
-            np.empty(0, dtype=np.float64),
-            np.empty(0, dtype=np.float32),
+        return (
+            result
+            if result is not None
+            else (
+                np.empty(0, dtype=np.float64),
+                np.empty(0, dtype=np.float32),
+            )
         )
 
     # ------------------------------------------------------------------
@@ -1083,7 +1125,11 @@ class TsfData:
         if ok == 0:
             self._raise_last_error()
 
-        return result if result is not None else (
-            np.empty(0, dtype=np.float64),
-            np.empty(0, dtype=np.float32),
+        return (
+            result
+            if result is not None
+            else (
+                np.empty(0, dtype=np.float64),
+                np.empty(0, dtype=np.float32),
+            )
         )

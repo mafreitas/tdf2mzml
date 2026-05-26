@@ -24,12 +24,11 @@ from tdf2mzml.constants import (
     DEFAULT_PRECISION,
     DEFAULT_START_FRAME,
     MSMS_TYPE_MS1,
-    MSMS_TYPE_PASEF_DDA,
     MSMS_TYPE_PASEF_DIA,
 )
-from tdf2mzml.io.baf_reader import BafReader, BAF_POLARITY_POSITIVE, BAF_MS_LEVEL_MS1
+from tdf2mzml.io.baf_reader import BAF_MS_LEVEL_MS1, BAF_POLARITY_POSITIVE, BafReader
 from tdf2mzml.io.reader import TdfReader
-from tdf2mzml.io.tsf_reader import TsfReader, TSF_MSMS_TYPE_MS1, TSF_MSMS_TYPE_AUTO_MSMS
+from tdf2mzml.io.tsf_reader import TSF_MSMS_TYPE_AUTO_MSMS, TSF_MSMS_TYPE_MS1, TsfReader
 from tdf2mzml.models.config import ConversionConfig
 from tdf2mzml.models.spectrum import PrecursorInfo, SpectrumArrays
 from tdf2mzml.output.writer import IndexedMzMLWriter
@@ -58,17 +57,19 @@ def build_parser() -> argparse.ArgumentParser:
         description=f"Convert Bruker TimsTOF TDF files to indexed mzML  (v{__version__})",
     )
     parser.add_argument(
-        "-i", "--input",
+        "-i",
+        "--input",
         required=True,
         metavar="INPUT_DIR",
         help="Path to the Bruker .d directory",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         required=False,
         default=None,
         metavar="OUTPUT_FILE",
-        help="Output .mzML path (default: same location and base name as input, with .mzML extension)",
+        help="Output .mzML path (default: same base name with .mzML extension)",
     )
     parser.add_argument(
         "--ms1_type",
@@ -99,14 +100,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Keep N largest MS2 peaks; -1 = all",
     )
     parser.add_argument(
-        "-s", "--start_frame",
+        "-s",
+        "--start_frame",
         type=int,
         default=DEFAULT_START_FRAME,
         metavar="N",
         help="First frame to convert (-1 = first available)",
     )
     parser.add_argument(
-        "-e", "--end_frame",
+        "-e",
+        "--end_frame",
         type=int,
         default=DEFAULT_END_FRAME,
         metavar="N",
@@ -139,7 +142,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"m/z binning precision in ppm for raw mode (default: {DEFAULT_PRECISION})",
     )
     parser.add_argument(
-        "-d", "--debug",
+        "-d",
+        "--debug",
         action="store_true",
         default=False,
         help="Enable verbose debug logging",
@@ -321,9 +325,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
         all_frames = reader.get_all_frames()
 
         start_frame = config.start_frame if config.start_frame != -1 else 1
-        end_frame = (
-            config.end_frame if config.end_frame != -1 else meta.frame_count
-        )
+        end_frame = config.end_frame if config.end_frame != -1 else meta.frame_count
 
         # Count spectra that will be written
         actual_spectra = sum(
@@ -339,8 +341,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
         ms2_frame_ids = [
             int(f[0])
             for f in all_frames
-            if start_frame <= int(f[0]) <= end_frame
-            and int(f[4]) == TSF_MSMS_TYPE_AUTO_MSMS
+            if start_frame <= int(f[0]) <= end_frame and int(f[4]) == TSF_MSMS_TYPE_AUTO_MSMS
         ]
         ms2_info_cache = reader.get_ms2_info_batch(ms2_frame_ids)
 
@@ -375,9 +376,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                     try:
                         raw_mz, raw_i = reader.read_line_spectrum(frame_id)
                     except RuntimeError as exc:
-                        logger.warning(
-                            "Frame %d: read_line_spectrum failed: %s", frame_id, exc
-                        )
+                        logger.warning("Frame %d: read_line_spectrum failed: %s", frame_id, exc)
                         raw_mz = np.empty(0, dtype=np.float64)
                         raw_i = np.empty(0, dtype=np.float32)
 
@@ -405,9 +404,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                 elif msms_type == TSF_MSMS_TYPE_AUTO_MSMS:
                     info = ms2_info_cache.get(frame_id)
                     if info is None:
-                        logger.warning(
-                            "Frame %d: no FrameMsMsInfo entry, skipping", frame_id
-                        )
+                        logger.warning("Frame %d: no FrameMsMsInfo entry, skipping", frame_id)
                         continue
 
                     # Resolve parent MS1 spectrum ID
@@ -420,9 +417,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                     try:
                         raw_mz, raw_i = reader.read_line_spectrum(frame_id)
                     except RuntimeError as exc:
-                        logger.warning(
-                            "Frame %d: read_line_spectrum failed: %s", frame_id, exc
-                        )
+                        logger.warning("Frame %d: read_line_spectrum failed: %s", frame_id, exc)
                         raw_mz = np.empty(0, dtype=np.float64)
                         raw_i = np.empty(0, dtype=np.float32)
 
@@ -435,7 +430,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                     # Apply n-largest filter
                     if config.ms2_nlargest > 0 and len(raw_i) > config.ms2_nlargest:
                         top_idx = np.argpartition(raw_i, -config.ms2_nlargest)[
-                            -config.ms2_nlargest:
+                            -config.ms2_nlargest :
                         ]
                         top_idx = top_idx[np.argsort(raw_mz[top_idx])]
                         raw_mz = raw_mz[top_idx]
@@ -499,23 +494,16 @@ def run_baf_conversion(config: ConversionConfig) -> None:
         all_spectra = reader.get_all_spectra()
 
         start_frame = config.start_frame if config.start_frame != -1 else 1
-        end_frame = (
-            config.end_frame if config.end_frame != -1 else meta.frame_count
-        )
+        end_frame = config.end_frame if config.end_frame != -1 else meta.frame_count
 
         # Filter to the requested range
-        spectra_in_range = [
-            row for row in all_spectra
-            if start_frame <= int(row[0]) <= end_frame
-        ]
+        spectra_in_range = [row for row in all_spectra if start_frame <= int(row[0]) <= end_frame]
         actual_spectra = len(spectra_in_range)
         progress = ProgressLogger(total=actual_spectra)
 
         # Batch-load MS2 precursor metadata (mass, CE, isolation width) from
         # Steps + Variables tables for all MS2 spectra in the conversion range.
-        ms2_ids = [
-            int(row[0]) for row in spectra_in_range if int(row[9]) >= BAF_MS_LEVEL_MS1 + 1
-        ]
+        ms2_ids = [int(row[0]) for row in spectra_in_range if int(row[9]) >= BAF_MS_LEVEL_MS1 + 1]
         ms2_info_cache = reader.get_ms2_precursor_batch(ms2_ids)
 
         # Track last written MS1 spectrum ID for MS2 parent references
@@ -534,19 +522,18 @@ def run_baf_conversion(config: ConversionConfig) -> None:
                 # (Id, Rt, Parent, MzAcqRangeLower, MzAcqRangeUpper,
                 #  LineMzId, LineIntensityId, ProfileMzId, ProfileIntensityId,
                 #  MsLevel, Polarity)
-                spec_id   = int(row[0])
-                rt_sec    = float(row[1]) if row[1] is not None else 0.0
-                ms_level  = int(row[9])
+                spec_id = int(row[0])
+                rt_sec = float(row[1]) if row[1] is not None else 0.0
+                ms_level = int(row[9])
                 polarity_code = int(row[10]) if row[10] is not None else BAF_POLARITY_POSITIVE
-                line_mz_id  = row[5]
+                line_mz_id = row[5]
                 line_int_id = row[6]
-                prof_mz_id  = row[7]
+                prof_mz_id = row[7]
                 prof_int_id = row[8]
 
                 scan_start_time = rt_sec / 60.0
                 polarity = (
-                    "positive scan" if polarity_code == BAF_POLARITY_POSITIVE
-                    else "negative scan"
+                    "positive scan" if polarity_code == BAF_POLARITY_POSITIVE else "negative scan"
                 )
 
                 # --- Read spectrum arrays ---
@@ -554,9 +541,7 @@ def run_baf_conversion(config: ConversionConfig) -> None:
                 use_centroid = config.ms1_type != "profile"
                 if use_centroid and line_mz_id is not None and line_int_id is not None:
                     try:
-                        raw_mz, raw_i = reader.read_line_spectrum(
-                            int(line_mz_id), int(line_int_id)
-                        )
+                        raw_mz, raw_i = reader.read_line_spectrum(int(line_mz_id), int(line_int_id))
                         centroided = True
                     except RuntimeError as exc:
                         logger.warning("Spectrum %d: line read failed: %s", spec_id, exc)
@@ -604,7 +589,7 @@ def run_baf_conversion(config: ConversionConfig) -> None:
 
                     if config.ms2_nlargest > 0 and len(raw_i) > config.ms2_nlargest:
                         top_idx = np.argpartition(raw_i, -config.ms2_nlargest)[
-                            -config.ms2_nlargest:
+                            -config.ms2_nlargest :
                         ]
                         top_idx = top_idx[np.argsort(raw_mz[top_idx])]
                         raw_mz = raw_mz[top_idx]
@@ -618,11 +603,12 @@ def run_baf_conversion(config: ConversionConfig) -> None:
                     iso_w = info.get("isolation_width")
                     half_w = float(iso_w) / 2.0 if iso_w is not None else None
 
+                    _mz = float(precursor_mz) if precursor_mz is not None else 0.0
                     precursor_info = PrecursorInfo(
-                        mz=float(precursor_mz),
+                        mz=_mz,
                         charge=None,
                         spectrum_reference=last_ms1_spectrum_id,
-                        isolation_window_target=float(precursor_mz),
+                        isolation_window_target=_mz,
                         isolation_window_lower=half_w,
                         isolation_window_upper=half_w,
                         one_over_k0=None,
@@ -680,13 +666,9 @@ def run_conversion(config: ConversionConfig) -> None:
         # Resolve frame range
         all_frames = reader.get_all_frames()
         start_frame = config.start_frame if config.start_frame != -1 else 1
-        end_frame = (
-            config.end_frame if config.end_frame != -1 else meta.frame_count
-        )
+        end_frame = config.end_frame if config.end_frame != -1 else meta.frame_count
 
-        actual_spectra = _count_spectra_in_range(
-            reader, all_frames, start_frame, end_frame, meta
-        )
+        actual_spectra = _count_spectra_in_range(reader, all_frames, start_frame, end_frame, meta)
         progress = ProgressLogger(total=actual_spectra)
 
         with IndexedMzMLWriter(
@@ -745,22 +727,17 @@ def _write_spectra(
     # Bulk-load all DDA precursors for the frame range in a single SQL
     # query, avoiding per-frame round-trips.  Keyed by parent MS1 frame ID.
     from tdf2mzml.models.spectrum import PrecursorRow
+
     dda_precursors: dict[int, list[PrecursorRow]] = (
-        reader.get_precursors_in_range(start_frame, end_frame)
-        if meta.has_pasef_dda
-        else {}
+        reader.get_precursors_in_range(start_frame, end_frame) if meta.has_pasef_dda else {}
     )
 
     # Pre-load PASEF frame info for all precursors in one batch SQL query
     all_precursor_ids: list[int] = [
-        int(p["Id"])
-        for precs in dda_precursors.values()
-        for p in precs
+        int(p["Id"]) for precs in dda_precursors.values() for p in precs
     ]
     pasef_info_cache: dict[int, dict[str, float]] = (
-        reader.get_pasef_frame_info_batch(all_precursor_ids)
-        if all_precursor_ids
-        else {}
+        reader.get_pasef_frame_info_batch(all_precursor_ids) if all_precursor_ids else {}
     )
 
     for frame in all_frames:
@@ -825,19 +802,16 @@ def _write_spectra(
 
                     # Batch 1/K0 conversion for all precursor scan numbers at once
                     scan_numbers = [
-                        float(p["ScanNumber"])
+                        float(p["ScanNumber"])  # type: ignore[arg-type]
                         for p in frame_precursors
                         if p.get("ScanNumber") is not None
                     ]
                     prec_ook0: dict[int, float] = {}
                     if scan_numbers:
                         ook0_arr = reader.scan_num_to_one_over_k0(frame_id, scan_numbers)
-                        sn_iter = (
-                            p for p in frame_precursors if p.get("ScanNumber") is not None
-                        )
+                        sn_iter = (p for p in frame_precursors if p.get("ScanNumber") is not None)
                         prec_ook0 = {
-                            int(p["Id"]): float(v)
-                            for p, v in zip(sn_iter, ook0_arr)
+                            int(p["Id"]): float(v) for p, v in zip(sn_iter, ook0_arr, strict=False)
                         }
 
                     for precursor in frame_precursors:

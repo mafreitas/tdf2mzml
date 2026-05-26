@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import textwrap
 from typing import Literal
-from xml.sax.saxutils import escape as _xml_escape, quoteattr as _xml_quoteattr
+from xml.sax.saxutils import escape as _xml_escape
 
 import numpy as np
 import numpy.typing as npt
@@ -35,22 +35,22 @@ from tdf2mzml.constants import (
     CV_IM_LOWER_LIMIT,
     CV_IM_UPPER_LIMIT,
     CV_INSTRUMENT_SERIAL,
+    CV_INTENSITY_ARRAY,
     CV_INVERSE_REDUCED_ION_MOBILITY,
     CV_ION_MOBILITY_ARRAY,
     CV_ISOLATION_WINDOW_LOWER,
     CV_ISOLATION_WINDOW_TARGET,
     CV_ISOLATION_WINDOW_UPPER,
     CV_MCP_DETECTOR,
-    CV_PHOTOMULTIPLIER,
     CV_MS1_SPECTRUM,
     CV_MS_LEVEL,
     CV_MSN_SPECTRUM,
     CV_MZ_ARRAY,
-    CV_INTENSITY_ARRAY,
     CV_NANOSPRAY_INLET,
     CV_NEGATIVE_SCAN,
     CV_NO_COMBINATION,
     CV_NO_COMPRESSION,
+    CV_PHOTOMULTIPLIER,
     CV_POSITIVE_SCAN,
     CV_PROFILE_SPECTRUM,
     CV_QUADRUPOLE,
@@ -179,9 +179,7 @@ def mzml_open(spectrum_count: int) -> bytes:
     bytes
     """
     ns = MZML_NAMESPACE
-    return (
-        f'  <mzML xmlns="{ns}" version="{MZML_VERSION}">\n'
-    ).encode()
+    return (f'  <mzML xmlns="{ns}" version="{MZML_VERSION}">\n').encode()
 
 
 # ---------------------------------------------------------------------------
@@ -243,20 +241,20 @@ def file_description(
         acc = _content_accessions.get(p, "")
         lines.append(f"        {_cv(acc, p)}")
     lines.append("      </fileContent>")
-    lines.append(f"      <sourceFileList count=\"{len(source_files)}\">")
+    lines.append(f'      <sourceFileList count="{len(source_files)}">')
     for sf in source_files:
         sha_attr = (
-            f'\n          {_cv(CV_SHA1, "SHA-1", _xml_escape(sf["sha1"]))}'
+            f"\n          {_cv(CV_SHA1, 'SHA-1', _xml_escape(sf['sha1']))}"
             if sf.get("sha1")
             else ""
         )
         lines.append(
             f'        <sourceFile id="{_xml_escape(sf["id"])}" name="{_xml_escape(sf["name"])}" '
             f'location="{_xml_escape(sf["location"])}">'
-            f'{sha_attr}\n'
-            f'          {_cv(CV_BRUKER_TDF_FORMAT, "Bruker TDF format")}\n'
-            f'          {_cv(CV_BRUKER_TDF_NATIVE_ID, "Bruker TDF nativeID format")}\n'
-            f'        </sourceFile>'
+            f"{sha_attr}\n"
+            f"          {_cv(CV_BRUKER_TDF_FORMAT, 'Bruker TDF format')}\n"
+            f"          {_cv(CV_BRUKER_TDF_NATIVE_ID, 'Bruker TDF nativeID format')}\n"
+            f"        </sourceFile>"
         )
     lines += ["      </sourceFileList>", "    </fileDescription>"]
     return ("\n".join(lines) + "\n").encode("utf-8")
@@ -267,7 +265,7 @@ def file_description(
 # ---------------------------------------------------------------------------
 
 
-def software_list(entries: list[dict[str, str]]) -> bytes:
+def software_list(entries: list[dict[str, object]]) -> bytes:
     """Return the ``<softwareList>`` block.
 
     Parameters
@@ -283,19 +281,20 @@ def software_list(entries: list[dict[str, str]]) -> bytes:
     """
     lines = [f'    <softwareList count="{len(entries)}">']
     for e in entries:
-        acc = e.get("cv_accession", "")
-        cv_value = e.get("cv_value", "")
-        cv_tag = f'        {_cv(acc, _xml_escape(e["cv_name"]), cv_value)}'
+        acc = str(e.get("cv_accession", ""))
+        cv_value = str(e.get("cv_value", ""))
+        cv_tag = f"        {_cv(acc, _xml_escape(str(e['cv_name'])), cv_value)}"
         user_tags = ""
-        for up in e.get("user_params", []):
+        user_params: list[dict[str, str]] = e.get("user_params", [])  # type: ignore[assignment]
+        for up in user_params:
             user_tags += (
                 f'\n        <userParam name="{_xml_escape(up["name"])}" '
                 f'value="{_xml_escape(up["value"])}" type="xsd:string"/>'
             )
         lines.append(
-            f'      <software id="{_xml_escape(e["id"])}" version="{_xml_escape(e["version"])}">\n'
-            f'{cv_tag}{user_tags}\n'
-            f'      </software>'
+            f'      <software id="{_xml_escape(str(e["id"]))}" version="{_xml_escape(str(e["version"]))}">\n'
+            f"{cv_tag}{user_tags}\n"
+            f"      </software>"
         )
     lines.append("    </softwareList>")
     return ("\n".join(lines) + "\n").encode("utf-8")
@@ -537,97 +536,95 @@ def spectrum_element(
     polarity_cv = ""
     if polarity is not None:
         pol_acc = _POLARITY_ACCESSION[polarity]
-        polarity_cv = f'\n        {_cv(pol_acc, polarity)}'
+        polarity_cv = f"\n        {_cv(pol_acc, polarity)}"
 
     lines: list[str] = [
         f'      <spectrum index="{index}" id="{spectrum_id}" defaultArrayLength="{n_peaks}">',
-        f'        {_cv(CV_MS_LEVEL, "ms level", str(ms_level))}',
-        f'        {_cv(spectrum_type_acc, spectrum_type)}' + polarity_cv,
-        f'        {_cv(CV_TOTAL_ION_CURRENT, "total ion current", f"{total_ion_current:.6g}")}',
-        f'        {_cv(CV_BASE_PEAK_MZ, "base peak m/z", f"{base_peak_mz:.6f}", unit_accession=UNIT_MZ, unit_name="m/z")}',
-        f'        {_cv(CV_BASE_PEAK_INTENSITY, "base peak intensity", f"{base_peak_intensity:.6g}", unit_accession=UNIT_COUNTS, unit_name="number of detector counts")}',
+        f"        {_cv(CV_MS_LEVEL, 'ms level', str(ms_level))}",
+        f"        {_cv(spectrum_type_acc, spectrum_type)}" + polarity_cv,
+        f"        {_cv(CV_TOTAL_ION_CURRENT, 'total ion current', f'{total_ion_current:.6g}')}",
+        f"        {_cv(CV_BASE_PEAK_MZ, 'base peak m/z', f'{base_peak_mz:.6f}', unit_accession=UNIT_MZ, unit_name='m/z')}",
+        f"        {_cv(CV_BASE_PEAK_INTENSITY, 'base peak intensity', f'{base_peak_intensity:.6g}', unit_accession=UNIT_COUNTS, unit_name='number of detector counts')}",
     ]
 
     # Scan list
     im_scan_cv = ""
     if one_over_k0 is not None:
-        im_scan_cv = (
-            f'\n          {_cv(CV_INVERSE_REDUCED_ION_MOBILITY, "mean inverse reduced ion mobility", f"{one_over_k0:.6f}", unit_accession=UNIT_VSCC, unit_name="volt-second per square centimeter")}'
-        )
+        im_scan_cv = f"\n          {_cv(CV_INVERSE_REDUCED_ION_MOBILITY, 'mean inverse reduced ion mobility', f'{one_over_k0:.6f}', unit_accession=UNIT_VSCC, unit_name='volt-second per square centimeter')}"
     has_im_window = ook0_window_lower is not None and ook0_window_upper is not None
     n_scan_windows = 2 if has_im_window else 1
     im_window_xml = ""
     if has_im_window:
         im_window_xml = (
-            f'\n              <scanWindow>\n'
-            f'                {_cv(CV_IM_LOWER_LIMIT, "inverse reduced ion mobility lower limit", str(ook0_window_lower), unit_accession=UNIT_VSCC, unit_name="volt-second per square centimeter")}\n'
-            f'                {_cv(CV_IM_UPPER_LIMIT, "inverse reduced ion mobility upper limit", str(ook0_window_upper), unit_accession=UNIT_VSCC, unit_name="volt-second per square centimeter")}\n'
-            f'              </scanWindow>'
+            f"\n              <scanWindow>\n"
+            f"                {_cv(CV_IM_LOWER_LIMIT, 'inverse reduced ion mobility lower limit', str(ook0_window_lower), unit_accession=UNIT_VSCC, unit_name='volt-second per square centimeter')}\n"
+            f"                {_cv(CV_IM_UPPER_LIMIT, 'inverse reduced ion mobility upper limit', str(ook0_window_upper), unit_accession=UNIT_VSCC, unit_name='volt-second per square centimeter')}\n"
+            f"              </scanWindow>"
         )
     lines += [
         '        <scanList count="1">',
-        f'          {_cv(CV_NO_COMBINATION, "no combination")}',
-        '          <scan>',
-        f'            {_cv(CV_SCAN_START_TIME, "scan start time", f"{scan_start_time:.6f}", unit_accession=UNIT_MINUTE, unit_name="minute", unit_cvref="UO")}' + im_scan_cv,
+        f"          {_cv(CV_NO_COMBINATION, 'no combination')}",
+        "          <scan>",
+        f"            {_cv(CV_SCAN_START_TIME, 'scan start time', f'{scan_start_time:.6f}', unit_accession=UNIT_MINUTE, unit_name='minute', unit_cvref='UO')}"
+        + im_scan_cv,
         f'            <scanWindowList count="{n_scan_windows}">',
-        '              <scanWindow>',
-        f'                {_cv(CV_SCAN_WINDOW_LOWER, "scan window lower limit", str(scan_window_lower), unit_accession=UNIT_MZ, unit_name="m/z")}',
-        f'                {_cv(CV_SCAN_WINDOW_UPPER, "scan window upper limit", str(scan_window_upper), unit_accession=UNIT_MZ, unit_name="m/z")}',
-        '              </scanWindow>' + im_window_xml,
-        '            </scanWindowList>',
-        '          </scan>',
-        '        </scanList>',
+        "              <scanWindow>",
+        f"                {_cv(CV_SCAN_WINDOW_LOWER, 'scan window lower limit', str(scan_window_lower), unit_accession=UNIT_MZ, unit_name='m/z')}",
+        f"                {_cv(CV_SCAN_WINDOW_UPPER, 'scan window upper limit', str(scan_window_upper), unit_accession=UNIT_MZ, unit_name='m/z')}",
+        "              </scanWindow>" + im_window_xml,
+        "            </scanWindowList>",
+        "          </scan>",
+        "        </scanList>",
     ]
 
     # Precursor list (MS2 only)
     if ms_level == 2 and precursor_mz is not None:
         charge_cv = ""
         if precursor_charge is not None:
-            charge_cv = f'\n              {_cv(CV_CHARGE_STATE, "charge state", str(precursor_charge))}'
-        ref_attr = (
-            f' spectrumRef="{precursor_spectrum_ref}"'
-            if precursor_spectrum_ref
-            else ""
-        )
+            charge_cv = (
+                f"\n              {_cv(CV_CHARGE_STATE, 'charge state', str(precursor_charge))}"
+            )
+        ref_attr = f' spectrumRef="{precursor_spectrum_ref}"' if precursor_spectrum_ref else ""
         ce_cv = ""
         if collision_energy is not None:
-            ce_cv = f'\n            {_cv(CV_COLLISION_ENERGY, "collision energy", str(collision_energy), unit_accession=UNIT_ELECTRONVOLT, unit_name="electronvolt", unit_cvref="UO")}'
+            ce_cv = f"\n            {_cv(CV_COLLISION_ENERGY, 'collision energy', str(collision_energy), unit_accession=UNIT_ELECTRONVOLT, unit_name='electronvolt', unit_cvref='UO')}"
         lines += [
             '        <precursorList count="1">',
-            f'          <precursor{ref_attr}>',
-            '            <isolationWindow>',
+            f"          <precursor{ref_attr}>",
+            "            <isolationWindow>",
             *(
                 [
-                    f'              {_cv(CV_ISOLATION_WINDOW_TARGET, "isolation window target m/z", str(isolation_window_target), unit_accession=UNIT_MZ, unit_name="m/z")}',
+                    f"              {_cv(CV_ISOLATION_WINDOW_TARGET, 'isolation window target m/z', str(isolation_window_target), unit_accession=UNIT_MZ, unit_name='m/z')}",
                 ]
                 if isolation_window_target is not None
                 else []
             ),
             *(
                 [
-                    f'              {_cv(CV_ISOLATION_WINDOW_LOWER, "isolation window lower offset", str(isolation_window_lower), unit_accession=UNIT_MZ, unit_name="m/z")}',
+                    f"              {_cv(CV_ISOLATION_WINDOW_LOWER, 'isolation window lower offset', str(isolation_window_lower), unit_accession=UNIT_MZ, unit_name='m/z')}",
                 ]
                 if isolation_window_lower is not None
                 else []
             ),
             *(
                 [
-                    f'              {_cv(CV_ISOLATION_WINDOW_UPPER, "isolation window upper offset", str(isolation_window_upper), unit_accession=UNIT_MZ, unit_name="m/z")}',
+                    f"              {_cv(CV_ISOLATION_WINDOW_UPPER, 'isolation window upper offset', str(isolation_window_upper), unit_accession=UNIT_MZ, unit_name='m/z')}",
                 ]
                 if isolation_window_upper is not None
                 else []
             ),
-            '            </isolationWindow>',
+            "            </isolationWindow>",
             '            <selectedIonList count="1">',
-            '              <selectedIon>',
-            f'                {_cv(CV_SELECTED_ION_MZ, "selected ion m/z", str(precursor_mz), unit_accession=UNIT_MZ, unit_name="m/z")}' + charge_cv,
-            '              </selectedIon>',
-            '            </selectedIonList>',
-            '            <activation>',
-            f'              {_cv(CV_CID, "collision-induced dissociation")}' + ce_cv,
-            '            </activation>',
-            '          </precursor>',
-            '        </precursorList>',
+            "              <selectedIon>",
+            f"                {_cv(CV_SELECTED_ION_MZ, 'selected ion m/z', str(precursor_mz), unit_accession=UNIT_MZ, unit_name='m/z')}"
+            + charge_cv,
+            "              </selectedIon>",
+            "            </selectedIonList>",
+            "            <activation>",
+            f"              {_cv(CV_CID, 'collision-induced dissociation')}" + ce_cv,
+            "            </activation>",
+            "          </precursor>",
+            "        </precursorList>",
         ]
 
     # Binary data arrays
@@ -636,21 +633,21 @@ def spectrum_element(
     # m/z array
     lines += [
         f'          <binaryDataArray encodedLength="{len(mz_b64)}">',
-        f'            {_cv(CV_MZ_ARRAY, "m/z array")}',
-        f'            {_cv(CV_64BIT_FLOAT, "64-bit float")}',
-        f'            {_cv(comp_cv_acc, comp_cv_name)}',
-        f'            <binary>{mz_b64}</binary>',
-        '          </binaryDataArray>',
+        f"            {_cv(CV_MZ_ARRAY, 'm/z array')}",
+        f"            {_cv(CV_64BIT_FLOAT, '64-bit float')}",
+        f"            {_cv(comp_cv_acc, comp_cv_name)}",
+        f"            <binary>{mz_b64}</binary>",
+        "          </binaryDataArray>",
     ]
 
     # intensity array
     lines += [
         f'          <binaryDataArray encodedLength="{len(int_b64)}">',
-        f'            {_cv(CV_INTENSITY_ARRAY, "intensity array")}',
-        f'            {_cv(CV_32BIT_FLOAT, "32-bit float")}',
-        f'            {_cv(comp_cv_acc, comp_cv_name)}',
-        f'            <binary>{int_b64}</binary>',
-        '          </binaryDataArray>',
+        f"            {_cv(CV_INTENSITY_ARRAY, 'intensity array')}",
+        f"            {_cv(CV_32BIT_FLOAT, '32-bit float')}",
+        f"            {_cv(comp_cv_acc, comp_cv_name)}",
+        f"            <binary>{int_b64}</binary>",
+        "          </binaryDataArray>",
     ]
 
     # optional ion mobility array
@@ -658,11 +655,11 @@ def spectrum_element(
         im_b64 = encode_array(ion_mobility_array, compression)
         lines += [
             f'          <binaryDataArray encodedLength="{len(im_b64)}">',
-            f'            {_cv(CV_ION_MOBILITY_ARRAY, "mean inverse reduced ion mobility array")}',
-            f'            {_cv(CV_64BIT_FLOAT, "64-bit float")}',
-            f'            {_cv(comp_cv_acc, comp_cv_name)}',
-            f'            <binary>{im_b64}</binary>',
-            '          </binaryDataArray>',
+            f"            {_cv(CV_ION_MOBILITY_ARRAY, 'mean inverse reduced ion mobility array')}",
+            f"            {_cv(CV_64BIT_FLOAT, '64-bit float')}",
+            f"            {_cv(comp_cv_acc, comp_cv_name)}",
+            f"            <binary>{im_b64}</binary>",
+            "          </binaryDataArray>",
         ]
 
     lines += ["        </binaryDataArrayList>", "      </spectrum>"]

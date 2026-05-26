@@ -123,8 +123,6 @@ def mean_ook0_for_frame(
         Intensity-weighted mean 1/K0 in V·s/cm².
     """
     scan_nums = np.arange(0, num_scans, dtype=np.float64)
-    ook0_values: npt.NDArray[np.float64] = reader.scan_num_to_one_over_k0(
-        frame_id, scan_nums
-    )
+    ook0_values: npt.NDArray[np.float64] = reader.scan_num_to_one_over_k0(frame_id, scan_nums)
     tic_per_scan = reader.read_scan_tics(frame_id, 0, num_scans)
     return intensity_weighted_mean_ook0(tic_per_scan, ook0_values)

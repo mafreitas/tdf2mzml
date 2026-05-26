@@ -1,4 +1,5 @@
 """End-to-end conversion tests against real .d data."""
+
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from tdf2mzml.cli import run_conversion
 from tdf2mzml.models.config import ConversionConfig
 
 
+@pytest.mark.slow
 def test_dda_conversion_produces_valid_mzml(pasef_dda_path: Path, tmp_path: Path) -> None:
     """Full DDA conversion produces a parseable indexed mzML file."""
     out = tmp_path / "dda_output.mzML"
@@ -16,7 +18,7 @@ def test_dda_conversion_produces_valid_mzml(pasef_dda_path: Path, tmp_path: Path
         output=out,
         ms1_type="centroid",
         ion_mobility="mean",
-        end_frame=20,   # limit to first 20 frames for speed
+        end_frame=20,  # limit to first 20 frames for speed
     )
     run_conversion(config)
 
@@ -44,7 +46,7 @@ def test_dda_conversion_produces_valid_mzml(pasef_dda_path: Path, tmp_path: Path
     # Has fileChecksum
     checksum = root.find(".//m:fileChecksum", ns)
     assert checksum is not None
-    assert len(checksum.text or "") == 40   # SHA-1 hex
+    assert len(checksum.text or "") == 40  # SHA-1 hex
 
 
 def test_config_zip_input(tmp_path: Path) -> None:
@@ -56,6 +58,7 @@ def test_config_zip_input(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.slow
 def test_config_frame_range_validation(pasef_dda_path: Path, tmp_path: Path) -> None:
     """ConversionConfig rejects end_frame <= start_frame."""
     with pytest.raises(ValueError, match="end_frame"):

@@ -25,6 +25,7 @@ class PrecursorRow(TypedDict, total=False):
     Intensity: float
     Parent: int
 
+
 Float64Array = npt.NDArray[np.float64]
 Float32Array = npt.NDArray[np.float32]
 

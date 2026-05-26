@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from platform import python_version
 from typing import Literal
+from xml.sax.saxutils import escape as _xml_escape
 
 import numpy as np
 import numpy.typing as npt
@@ -25,7 +26,6 @@ from tdf2mzml.models.metadata import AcquisitionMetadata
 from tdf2mzml.models.spectrum import PrecursorInfo, SpectrumArrays
 from tdf2mzml.output import xml_elements as xe
 from tdf2mzml.utils import sha1_checksum
-from xml.sax.saxutils import escape as _xml_escape
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +72,10 @@ class IndexedMzMLWriter:
         self._total_spectra = total_spectra
         self._checksum_source_files = checksum_source_files
         self._fh = open(self._path, "wb")  # noqa: SIM115  # must stay open across calls
-        self._buf = bytearray()            # write buffer — flushed in FLUSH_SIZE chunks
-        self._disk_pos: int = 0           # bytes physically written to disk
-        self._sha1 = hashlib.sha1()       # incremental hash — avoids read-back in finalize
-        self._offsets: list[tuple[str, int]] = []   # (spectrum_id, byte_offset)
+        self._buf = bytearray()  # write buffer — flushed in FLUSH_SIZE chunks
+        self._disk_pos: int = 0  # bytes physically written to disk
+        self._sha1 = hashlib.sha1()  # incremental hash — avoids read-back in finalize
+        self._offsets: list[tuple[str, int]] = []  # (spectrum_id, byte_offset)
         self._spectrum_index: int = 0
         self._run_open_offset: int = 0
         self._spectrum_list_open_offset: int = 0
@@ -138,7 +138,7 @@ class IndexedMzMLWriter:
             },
         ]
 
-        software_entries = [
+        software_entries: list[dict[str, object]] = [
             {
                 "id": "TIMS_SDK",
                 "version": SDK_VERSION,
@@ -168,20 +168,18 @@ class IndexedMzMLWriter:
         self._write(xe.cv_list())
         self._write(xe.file_description(source_files))
         self._write(xe.software_list(software_entries))
-        self._write(xe.instrument_configuration_list(
-            meta.instrument_serial_number,
-            instrument_name=meta.instrument_name,
-            instrument_vendor=meta.instrument_vendor,
-        ))
+        self._write(
+            xe.instrument_configuration_list(
+                meta.instrument_serial_number,
+                instrument_name=meta.instrument_name,
+                instrument_vendor=meta.instrument_vendor,
+            )
+        )
         self._write(xe.sample_list(meta.sample_name, description=meta.description))
         self._write(xe.data_processing_list(__version__))
 
         # Build a safe run ID from sample name or fall back to analysis_id / "1"
-        run_id = (
-            meta.sample_name.replace(" ", "_").replace("/", "_") or
-            meta.analysis_id or
-            "1"
-        )
+        run_id = meta.sample_name.replace(" ", "_").replace("/", "_") or meta.analysis_id or "1"
         run_id = _xml_escape(run_id)
         # Warn if acquisition was not closed cleanly
         if not meta.closed_properly:
@@ -204,13 +202,12 @@ class IndexedMzMLWriter:
             else ""
         )
         method_param = (
-            f'\n      <userParam name="acquisition method" value="{_xml_escape(meta.method_name)}"/>'
+            f'\n      <userParam name="acquisition method" '
+            f'value="{_xml_escape(meta.method_name)}"/>'
             if meta.method_name
             else ""
         )
-        run_line = (
-            f'    <run {run_attrs}>{operator_param}{method_param}\n'
-        ).encode()
+        run_line = (f"    <run {run_attrs}>{operator_param}{method_param}\n").encode()
         self._write(run_line)
 
         # Open spectrumList
@@ -381,7 +378,14 @@ class IndexedMzMLWriter:
     # ------------------------------------------------------------------
 
     def finalize(self) -> None:
-        """Close spectrumList, run, mzML; write index, checksum, close file."""
+        """Close all open XML elements, write the spectrum index, and close the file.
+
+        Writes the closing ``</spectrumList>``, ``</run>``, ``</mzML>`` tags,
+        then the ``<indexList>`` with byte offsets for every spectrum, the
+        ``<indexListOffset>``, and finally the SHA-1 ``<fileChecksum>`` and
+        ``</indexedmzML>`` closing tag.  The output file is closed after this
+        call; subsequent calls are no-ops.
+        """
         if self._fh.closed:
             return
 
@@ -395,26 +399,19 @@ class IndexedMzMLWriter:
         self._write(b'  <indexList count="1">\n')
         self._write(b'    <index name="spectrum">\n')
         for sid, off in self._offsets:
-            self._write(
-                f'      <offset idRef="{sid}">{off}</offset>\n'.encode()
-            )
+            self._write(f'      <offset idRef="{sid}">{off}</offset>\n'.encode())
         self._write(b"    </index>\n")
         self._write(b"  </indexList>\n")
 
         # indexListOffset
-        self._write(
-            f"  <indexListOffset>{index_list_offset}</indexListOffset>\n".encode()
-        )
+        self._write(f"  <indexListOffset>{index_list_offset}</indexListOffset>\n".encode())
 
         # Flush all buffered data so sha1 digest is complete
         self._flush()
         sha1_hex = self._sha1.hexdigest()
 
         # Write fileChecksum and closing tag directly — not part of the checksum
-        tail = (
-            f"  <fileChecksum>{sha1_hex}</fileChecksum>\n"
-            "</indexedmzML>\n"
-        ).encode()
+        tail = (f"  <fileChecksum>{sha1_hex}</fileChecksum>\n</indexedmzML>\n").encode()
         self._fh.write(tail)
 
         self._fh.close()

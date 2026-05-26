@@ -553,7 +553,7 @@ def spectrum_element(
     # Scan list
     im_scan_cv = ""
     if one_over_k0 is not None:
-        im_scan_cv = f"\n          {_cv(CV_INVERSE_REDUCED_ION_MOBILITY, 'mean inverse reduced ion mobility', f'{one_over_k0:.6f}', unit_accession=UNIT_VSCC, unit_name='volt-second per square centimeter')}"
+        im_scan_cv = f"\n          {_cv(CV_INVERSE_REDUCED_ION_MOBILITY, 'inverse reduced ion mobility', f'{one_over_k0:.6f}', unit_accession=UNIT_VSCC, unit_name='volt-second per square centimeter')}"
     has_im_window = ook0_window_lower is not None and ook0_window_upper is not None
     n_scan_windows = 2 if has_im_window else 1
     im_window_xml = ""

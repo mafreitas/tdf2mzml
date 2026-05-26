@@ -604,10 +604,20 @@ class TestIonMobility:
 
     def test_scan_level_ook0(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
-        ook0 = [p for p in params if p.get("name") == "mean inverse reduced ion mobility"]
+        ook0 = [p for p in params if p.get("name") == "inverse reduced ion mobility"]
         assert len(ook0) == 1
-        assert ook0[0]["accession"] == "MS:1002814"
+        assert ook0[0]["accession"] == "MS:1002815"
+        assert ook0[0]["cvRef"] == "PSI-MS"
+        assert ook0[0]["accession"] != ook0[0]["unitAccession"]
+        assert ook0[0]["unitAccession"] == "MS:1002814"
         assert ook0[0]["unitName"] == "volt-second per square centimeter"
+        assert ook0[0]["unitCvRef"] == "PSI-MS"
+
+    def test_scan_level_does_not_emit_array_term_as_scalar(self, ms1_spectrum_bytes: bytes) -> None:
+        """Guard against dual-emit regression — MS:1003008 is an array term."""
+        params = _find_all_cvparams(ms1_spectrum_bytes)
+        assert not any(p.get("accession") == "MS:1003008" for p in params)
+        assert not any(p.get("name") == "mean inverse reduced ion mobility" for p in params)
 
     def test_im_array_accession(self, ms1_with_im_array_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_with_im_array_bytes)

@@ -10,6 +10,6 @@ Output is fully indexed mzML 1.1.0 with byte-offset spectrum index,
 enabling random-access by downstream tools (OpenMS, Skyline, etc.).
 """
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 __author__ = "Michael A. Freitas"
 __license__ = "BSD 4-Clause License"

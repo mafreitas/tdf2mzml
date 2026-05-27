@@ -3,7 +3,7 @@
 #
 # Produces three artifacts in dist/:
 #   - tdf2mzml-X.Y.Z.tar.gz                       (sdist, all sources + libs)
-#   - tdf2mzml-X.Y.Z-py3-none-manylinux_2_17_x86_64.whl  (Linux libs only)
+#   - tdf2mzml-X.Y.Z-py3-none-manylinux_2_24_x86_64.whl  (Linux libs only)
 #   - tdf2mzml-X.Y.Z-py3-none-win_amd64.whl              (Windows libs only)
 #
 # The wheels share identical Python sources; they differ only in which
@@ -59,7 +59,7 @@ python -m build --sdist
 cp dist/*.tar.gz "$DIST/" 2>/dev/null || true
 
 # Linux wheel
-build_platform_wheel manylinux_2_17_x86_64 libtimsdata.so libbaf2sql_c.so
+build_platform_wheel manylinux_2_24_x86_64 libtimsdata.so libbaf2sql_c.so
 
 # Windows wheel
 build_platform_wheel win_amd64 timsdata.dll baf2sql_c.dll

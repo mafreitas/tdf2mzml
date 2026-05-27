@@ -1,14 +1,21 @@
 [project]
 name = "tdf2mzml"
-version = "0.6.1"
+version = "0.7.0"
 description = "Convert Bruker TimsTOF TDF files to indexed mzML"
 authors = [{name = "Michael A. Freitas", email = "mike.freitas@gmail.com"}]
 readme = "README.md"
-license = {file = "LICENSE.md"}
+license = "BSD-4-Clause"
+license-files = ["LICENSE.md", "NOTICE"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
     "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 requires-python = ">=3.11"
@@ -18,7 +25,10 @@ dependencies = [
 ]
 
 [project.urls]
-Home = "https://github.com/mafreitas/tdf2mzml"
+Homepage = "https://github.com/mafreitas/tdf2mzml"
+Repository = "https://github.com/mafreitas/tdf2mzml"
+Issues = "https://github.com/mafreitas/tdf2mzml/issues"
+Changelog = "https://github.com/mafreitas/tdf2mzml/blob/main/CHANGELOG.md"
 
 [project.scripts]
 tdf2mzml = "tdf2mzml.cli:main"
@@ -47,7 +57,13 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-tdf2mzml = ["libs/*.so", "libs/*.dll", "libs/*.lib"]
+tdf2mzml = [
+    "libs/*.so",
+    "libs/*.dll",
+    "libs/THIRD-PARTY-LICENSE-README.txt",
+    "libs/BAF2SQL-README.txt",
+    "libs/BAF2SQL-THIRD-PARTY-LICENSE-README.txt",
+]
 
 # ---------------------------------------------------------------------------
 # mypy — strict mode

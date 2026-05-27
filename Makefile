@@ -1,4 +1,4 @@
-.PHONY: setup clean dev test lint typecheck format build ci
+.PHONY: setup clean dev test lint typecheck format build ci sync-libs wheels release-test release
 
 setup:
 	asdf install
@@ -33,3 +33,15 @@ build:
 	docker build -t mfreitas/tdf2mzml:dev-noentry -f Dockerfile.noentry .
 
 ci: lint typecheck test
+
+sync-libs:
+	python scripts/sync_sdk_libs.py
+
+wheels: sync-libs
+	./scripts/build_wheels.sh
+
+release-test: wheels
+	python -m twine upload --repository testpypi dist/*
+
+release: wheels
+	python -m twine upload dist/*

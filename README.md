@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml/badge.svg)](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml)
 
-**v0.6.1** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
+**v0.7.0** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
 
 Author: Michael A. Freitas
 
@@ -45,7 +45,7 @@ make setup
 - `pydantic >= 2.0`
 - `numpy >= 1.24`
 
-The package bundles the required Bruker SDK libraries (`libtimsdata.so`, `timsdata.dll`, `libbaf2sql_c.so`) so no separate SDK installation is necessary.
+The package bundles the redistributable subset of the Bruker TDF SDK (v3.3.6.2) and Baf2Sql (v2.9.0) shared libraries on Linux (`libtimsdata.so`, `libbaf2sql_c.so`) and Windows (`timsdata.dll`, `baf2sql_c.dll`), redistributed under the Bruker Software License Agreements. See [NOTICE](NOTICE) for full attribution and third-party component notices. Windows users must also install the [Microsoft Visual C++ 2022 X64 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
 
 ## Quick Start
 
@@ -201,6 +201,10 @@ The output conforms to the mzML 1.1.0 specification:
 
 ## License
 
-BSD 4-Clause License. Copyright (c) 2020, Michael A. Freitas, The Ohio State University.
+`tdf2mzml` is released under the **BSD 4-Clause License**, Copyright (c) 2020-2026 Michael A. Freitas, The Ohio State University. See [LICENSE.md](LICENSE.md) for the full text.
 
-See [LICENSE.md](LICENSE.md) for the full text.
+### Third-Party Software
+
+This distribution bundles binaries from the **Bruker TDF SDK** (v3.3.6.2) and **Baf2Sql** (v2.9.0), Copyright (c) Bruker Daltonics GmbH & Co. KG. These binaries are redistributed under the Bruker Software License Agreements, in compliance with the redistribution allowlists in each SDK's `redist.txt`. Full attributions and the third-party component license texts are included in [NOTICE](NOTICE) and in `tdf2mzml/libs/THIRD-PARTY-LICENSE-README.txt` (installed alongside the package).
+
+Because the Bruker EULAs prohibit redistribution alongside GPL-family ("Excluded License") software, downstream projects bundling `tdf2mzml` must avoid GPL, LGPL, and AGPL licenses.

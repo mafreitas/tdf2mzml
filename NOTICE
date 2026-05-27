@@ -1,0 +1,52 @@
+tdf2mzml — Convert Bruker mass spectrometry data to indexed mzML
+Copyright (c) 2020-2026 Michael A. Freitas, The Ohio State University
+Licensed under the BSD 4-Clause License (see LICENSE.md).
+
+================================================================================
+THIRD-PARTY SOFTWARE NOTICES
+================================================================================
+
+This product includes the following third-party software, redistributed in
+binary form under the terms of each component's license. The full license
+texts are bundled in src/tdf2mzml/libs/ and reproduced with the installed
+wheel under tdf2mzml/libs/.
+
+--------------------------------------------------------------------------------
+Bruker TDF SDK (TDF Software Development Kit), version 3.3.6.2
+Copyright (c) Bruker Daltonics GmbH & Co. KG. All rights reserved.
+
+Redistributed binaries:
+  - tdf2mzml/libs/libtimsdata.so   (linux64)
+  - tdf2mzml/libs/timsdata.dll     (win64)
+
+Redistribution is governed by the Bruker Daltonics Software License Agreement
+("EULA TDF-SDK") accompanying the SDK; the files listed above are those
+permitted for redistribution by Section 4 and the SDK's redist.txt.
+
+Third-party components used by the TDF SDK (Intel MKL, zlib, Boost, UTF8-CPP,
+SQLite, CppSQLite, VIGRA, Zstandard, and others) are described in:
+  tdf2mzml/libs/THIRD-PARTY-LICENSE-README.txt
+
+--------------------------------------------------------------------------------
+Bruker Baf2Sql, version 2.9.0
+Copyright (c) Bruker Daltonics GmbH & Co. KG. All rights reserved.
+
+Redistributed binaries:
+  - tdf2mzml/libs/libbaf2sql_c.so   (linux64)
+  - tdf2mzml/libs/baf2sql_c.dll     (win64)
+
+Redistribution is governed by the Bruker Daltonics Baf2Sql End User License
+Agreement accompanying the SDK; the files listed above are those permitted
+for redistribution by the SDK's redist.txt.
+
+Required accompanying notices:
+  tdf2mzml/libs/BAF2SQL-README.txt
+  tdf2mzml/libs/BAF2SQL-THIRD-PARTY-LICENSE-README.txt
+
+================================================================================
+RUNTIME REQUIREMENTS (Windows)
+================================================================================
+
+The Bruker libraries require the Microsoft Visual C++ Redistributable
+(Visual Studio 2022 X64). Download and install from:
+  https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tdf2mzml import __version__
+from tdf2mzml import __version__, _version_text
 from tdf2mzml.constants import (
     DEFAULT_COMPRESSION,
     DEFAULT_END_FRAME,
@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {__version__}",
+        version=_version_text(),
     )
     return parser
 

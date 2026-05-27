@@ -50,7 +50,7 @@ def test_required_notice_files_present() -> None:
 
 def test_cli_version_contains_bruker_copyright() -> None:
     """--version output must satisfy Bruker EULA §4.4 'About' notice."""
-    from tdf2mzml.cli import _version_text  # added in Task 4
+    from tdf2mzml import _version_text
 
     text = _version_text()
     assert "Bruker" in text

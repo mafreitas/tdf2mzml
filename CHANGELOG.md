@@ -2,7 +2,7 @@
 
 All notable changes to tdf2mzml are documented in this file.
 
-## [0.6.1] — 2026-05-26
+## [0.6.1] — 2026-09-24
 
 ### Fixed
 - **XML attribute escaping** (#33) — values containing `"` no longer break the surrounding attribute. Affects sample descriptions, source-file paths, software fields, instrument names, and other attribute-bound strings. Adds an `_xml_attr()` helper applied at every attribute-bound escape site in `output/xml_elements.py`.

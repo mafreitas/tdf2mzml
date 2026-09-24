@@ -42,6 +42,7 @@ from tdf2mzml.constants import (
     MSMS_TYPE_PASEF_DIA,
     PRECURSOR_COLUMNS,
 )
+from tdf2mzml.io._sql import batched_in_query
 from tdf2mzml.io.timsdata import PressureCompensationStrategy, TimsData
 from tdf2mzml.models.metadata import AcquisitionMetadata, DiaWindow
 from tdf2mzml.models.spectrum import PrecursorRow
@@ -345,14 +346,12 @@ class TdfReader:
         dict
             Mapping precursor_id → {IsolationMz, CollisionEnergy, IsolationWidth}.
         """
-        if not precursor_ids:
-            return {}
-        placeholders = ",".join("?" * len(precursor_ids))
-        rows = self._tims.conn.execute(
-            f"SELECT Precursor, IsolationMz, CollisionEnergy, IsolationWidth "
-            f"FROM PasefFrameMsMsInfo WHERE Precursor IN ({placeholders})",
+        rows = batched_in_query(
+            self._tims.conn,
+            "SELECT Precursor, IsolationMz, CollisionEnergy, IsolationWidth "
+            "FROM PasefFrameMsMsInfo WHERE Precursor IN ({placeholders})",
             precursor_ids,
-        ).fetchall()
+        )
         return {
             int(r[0]): {
                 "IsolationMz": float(r[1]),

@@ -1,6 +1,6 @@
 [project]
 name = "tdf2mzml"
-version = "0.6.0"
+version = "0.6.1"
 description = "Convert Bruker TimsTOF TDF files to indexed mzML"
 authors = [{name = "Michael A. Freitas", email = "mike.freitas@gmail.com"}]
 readme = "README.md"
@@ -54,7 +54,7 @@ tdf2mzml = ["libs/*.so", "libs/*.dll", "libs/*.lib"]
 # ---------------------------------------------------------------------------
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 warn_unused_configs = true
 disallow_any_generics = true

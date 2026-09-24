@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 
+from tdf2mzml.io._sql import batched_in_query
 from tdf2mzml.io.bafdata import BafData
 from tdf2mzml.models.metadata import AcquisitionMetadata
 
@@ -248,17 +249,16 @@ class BafReader:
         if not spectrum_ids:
             return {}
 
-        placeholders = ",".join("?" * len(spectrum_ids))
-
         # Precursor mass from Steps — take the first fragmentation step per spectrum
         # (Number is 0-indexed on some instruments, 1-indexed on others)
-        steps_rows = self._baf.conn.execute(
-            f"SELECT TargetSpectrum, Mass FROM Steps "
-            f"WHERE TargetSpectrum IN ({placeholders}) "
-            f"AND Number = (SELECT MIN(Number) FROM Steps s2 "
-            f"WHERE s2.TargetSpectrum = Steps.TargetSpectrum)",
+        steps_rows = batched_in_query(
+            self._baf.conn,
+            "SELECT TargetSpectrum, Mass FROM Steps "
+            "WHERE TargetSpectrum IN ({placeholders}) "
+            "AND Number = (SELECT MIN(Number) FROM Steps s2 "
+            "WHERE s2.TargetSpectrum = Steps.TargetSpectrum)",
             spectrum_ids,
-        ).fetchall()
+        )
         result: dict[int, dict[str, float | None]] = {}
         for spec_id, mass in steps_rows:
             result[int(spec_id)] = {
@@ -275,14 +275,18 @@ class BafReader:
             var_ids.append(self._var_isolation_width)
 
         if var_ids and result:
+            # var_ids is bounded (≤2 values); inline its placeholders into
+            # the template and chunk only the unbounded spectrum_ids list.
             v_ph = ",".join("?" * len(var_ids))
-            s_ph = ",".join("?" * len(spectrum_ids))
             try:
-                var_rows = self._baf.conn.execute(
-                    f"SELECT Spectrum, Variable, Value FROM Variables "
-                    f"WHERE Spectrum IN ({s_ph}) AND Variable IN ({v_ph})",
-                    (*spectrum_ids, *var_ids),
-                ).fetchall()
+                var_rows = batched_in_query(
+                    self._baf.conn,
+                    "SELECT Spectrum, Variable, Value FROM Variables "
+                    "WHERE Spectrum IN ({placeholders}) "
+                    f"AND Variable IN ({v_ph})",
+                    spectrum_ids,
+                    extra_params=tuple(var_ids),
+                )
                 for spec_id, var_id, value in var_rows:
                     sid = int(spec_id)
                     if sid not in result:

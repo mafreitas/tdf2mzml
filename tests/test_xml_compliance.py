@@ -18,6 +18,11 @@ import pytest
 
 from tdf2mzml.output import xml_elements as xe
 
+try:
+    from lxml import etree
+except ImportError:  # pragma: no cover - local fallback when lxml is unavailable
+    import xml.etree.ElementTree as etree  # type: ignore[no-redef]  # noqa: N813
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -129,6 +134,29 @@ def ms1_with_im_array_bytes() -> bytes:
         ook0_window_lower=0.6,
         ook0_window_upper=1.6,
     )
+
+
+# ===================================================================
+# XML escaping
+# ===================================================================
+
+
+class TestXmlEscaping:
+    """XML builders must escape attribute values, including quotes."""
+
+    def test_xml_attr_escapes_double_quotes(self) -> None:
+        assert xe._xml_attr('a"b') == "a&quot;b"
+        assert xe._xml_attr("plain") == "plain"
+        assert xe._xml_attr('he said "hi" & ok') == "he said &quot;hi&quot; &amp; ok"
+
+    def test_sample_description_with_quotes_is_well_formed(self) -> None:
+        xml_bytes = xe.sample_list("sample one", 'sample "alpha" & beta')
+
+        root = etree.fromstring(xml_bytes)
+        description = root.find("sample/userParam")
+
+        assert description is not None
+        assert description.get("value") == 'sample "alpha" & beta'
 
 
 # ===================================================================
@@ -576,10 +604,20 @@ class TestIonMobility:
 
     def test_scan_level_ook0(self, ms1_spectrum_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_spectrum_bytes)
-        ook0 = [p for p in params if p.get("name") == "mean inverse reduced ion mobility"]
+        ook0 = [p for p in params if p.get("name") == "inverse reduced ion mobility"]
         assert len(ook0) == 1
-        assert ook0[0]["accession"] == "MS:1002814"
+        assert ook0[0]["accession"] == "MS:1002815"
+        assert ook0[0]["cvRef"] == "PSI-MS"
+        assert ook0[0]["accession"] != ook0[0]["unitAccession"]
+        assert ook0[0]["unitAccession"] == "MS:1002814"
         assert ook0[0]["unitName"] == "volt-second per square centimeter"
+        assert ook0[0]["unitCvRef"] == "PSI-MS"
+
+    def test_scan_level_does_not_emit_array_term_as_scalar(self, ms1_spectrum_bytes: bytes) -> None:
+        """Guard against dual-emit regression — MS:1003008 is an array term."""
+        params = _find_all_cvparams(ms1_spectrum_bytes)
+        assert not any(p.get("accession") == "MS:1003008" for p in params)
+        assert not any(p.get("name") == "mean inverse reduced ion mobility" for p in params)
 
     def test_im_array_accession(self, ms1_with_im_array_bytes: bytes) -> None:
         params = _find_all_cvparams(ms1_with_im_array_bytes)

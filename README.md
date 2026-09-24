@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml/badge.svg)](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml)
 
-**v0.6.0** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
+**v0.6.1** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
 
 Author: Michael A. Freitas
 

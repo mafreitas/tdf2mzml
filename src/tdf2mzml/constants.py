@@ -112,8 +112,7 @@ CV_INTENSITY_ARRAY: str = "MS:1000515"  # intensity array
 CV_ION_MOBILITY_ARRAY: str = "MS:1002816"  # mean inverse reduced ion mobility array
 
 # Ion mobility
-CV_INVERSE_REDUCED_ION_MOBILITY: str = "MS:1002814"  # inverse reduced ion mobility (1/K0)
-CV_MEAN_INVERSE_REDUCED_ION_MOBILITY: str = "MS:1003008"  # mean inverse reduced ion mobility
+CV_INVERSE_REDUCED_ION_MOBILITY: str = "MS:1002815"  # PSI-MS scalar term for 1/K0
 CV_IM_LOWER_LIMIT: str = "MS:1002476"  # inverse reduced ion mobility lower limit
 CV_IM_UPPER_LIMIT: str = "MS:1002477"  # inverse reduced ion mobility upper limit
 

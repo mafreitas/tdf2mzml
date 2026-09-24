@@ -90,6 +90,11 @@ def _indent(level: int) -> str:
     return _INDENT * level
 
 
+def _xml_attr(value: object) -> str:
+    """Escape a value for use inside an XML attribute."""
+    return _xml_escape(str(value), {'"': "&quot;"})
+
+
 # ---------------------------------------------------------------------------
 # cvParam helper
 # ---------------------------------------------------------------------------
@@ -244,13 +249,11 @@ def file_description(
     lines.append(f'      <sourceFileList count="{len(source_files)}">')
     for sf in source_files:
         sha_attr = (
-            f"\n          {_cv(CV_SHA1, 'SHA-1', _xml_escape(sf['sha1']))}"
-            if sf.get("sha1")
-            else ""
+            f"\n          {_cv(CV_SHA1, 'SHA-1', _xml_attr(sf['sha1']))}" if sf.get("sha1") else ""
         )
         lines.append(
-            f'        <sourceFile id="{_xml_escape(sf["id"])}" name="{_xml_escape(sf["name"])}" '
-            f'location="{_xml_escape(sf["location"])}">'
+            f'        <sourceFile id="{_xml_attr(sf["id"])}" name="{_xml_attr(sf["name"])}" '
+            f'location="{_xml_attr(sf["location"])}">'
             f"{sha_attr}\n"
             f"          {_cv(CV_BRUKER_TDF_FORMAT, 'Bruker TDF format')}\n"
             f"          {_cv(CV_BRUKER_TDF_NATIVE_ID, 'Bruker TDF nativeID format')}\n"
@@ -283,16 +286,16 @@ def software_list(entries: list[dict[str, object]]) -> bytes:
     for e in entries:
         acc = str(e.get("cv_accession", ""))
         cv_value = str(e.get("cv_value", ""))
-        cv_tag = f"        {_cv(acc, _xml_escape(str(e['cv_name'])), cv_value)}"
+        cv_tag = f"        {_cv(acc, _xml_attr(e['cv_name']), cv_value)}"
         user_tags = ""
         user_params: list[dict[str, str]] = e.get("user_params", [])  # type: ignore[assignment]
         for up in user_params:
             user_tags += (
-                f'\n        <userParam name="{_xml_escape(up["name"])}" '
-                f'value="{_xml_escape(up["value"])}" type="xsd:string"/>'
+                f'\n        <userParam name="{_xml_attr(up["name"])}" '
+                f'value="{_xml_attr(up["value"])}" type="xsd:string"/>'
             )
         lines.append(
-            f'      <software id="{_xml_escape(str(e["id"]))}" version="{_xml_escape(str(e["version"]))}">\n'
+            f'      <software id="{_xml_attr(e["id"])}" version="{_xml_attr(e["version"])}">\n'
             f"{cv_tag}{user_tags}\n"
             f"      </software>"
         )
@@ -326,17 +329,17 @@ def instrument_configuration_list(
     bytes
     """
     name_param = (
-        f'\n            <userParam name="instrument model" value="{_xml_escape(instrument_name)}"/>'
+        f'\n            <userParam name="instrument model" value="{_xml_attr(instrument_name)}"/>'
         if instrument_name
         else ""
     )
     vendor_param = (
-        f'\n            <userParam name="instrument vendor" value="{_xml_escape(instrument_vendor)}"/>'
+        f'\n            <userParam name="instrument vendor" value="{_xml_attr(instrument_vendor)}"/>'
         if instrument_vendor
         else ""
     )
     cv_instrument = _cv(CV_BRUKER_INSTRUMENT, "Bruker Daltonics instrument model")
-    cv_serial = _cv(CV_INSTRUMENT_SERIAL, "instrument serial number", _xml_escape(serial_number))
+    cv_serial = _cv(CV_INSTRUMENT_SERIAL, "instrument serial number", _xml_attr(serial_number))
     cv_nanospray = _cv(CV_NANOSPRAY_INLET, "nanospray inlet")
     cv_esi = _cv(CV_ESI, "electrospray ionization")
     cv_quad = _cv(CV_QUADRUPOLE, "quadrupole")
@@ -385,13 +388,13 @@ def sample_list(
     bytes
     """
     desc_param = (
-        f'\n        <userParam name="sample description" value="{_xml_escape(description)}"/>'
+        f'\n        <userParam name="sample description" value="{_xml_attr(description)}"/>'
         if description
         else ""
     )
     return textwrap.dedent(f"""\
         <sampleList count="1">
-          <sample id="S1" name="{_xml_escape(sample_name)}">{desc_param}
+          <sample id="S1" name="{_xml_attr(sample_name)}">{desc_param}
           </sample>
         </sampleList>
     """).encode("utf-8")
@@ -550,7 +553,7 @@ def spectrum_element(
     # Scan list
     im_scan_cv = ""
     if one_over_k0 is not None:
-        im_scan_cv = f"\n          {_cv(CV_INVERSE_REDUCED_ION_MOBILITY, 'mean inverse reduced ion mobility', f'{one_over_k0:.6f}', unit_accession=UNIT_VSCC, unit_name='volt-second per square centimeter')}"
+        im_scan_cv = f"\n          {_cv(CV_INVERSE_REDUCED_ION_MOBILITY, 'inverse reduced ion mobility', f'{one_over_k0:.6f}', unit_accession=UNIT_VSCC, unit_name='volt-second per square centimeter')}"
     has_im_window = ook0_window_lower is not None and ook0_window_upper is not None
     n_scan_windows = 2 if has_im_window else 1
     im_window_xml = ""

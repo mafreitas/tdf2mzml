@@ -54,7 +54,7 @@ tdf2mzml = ["libs/*.so", "libs/*.dll", "libs/*.lib"]
 # ---------------------------------------------------------------------------
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 warn_unused_configs = true
 disallow_any_generics = true

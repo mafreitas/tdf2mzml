@@ -170,7 +170,7 @@ The TSF pipeline (`run_tsf_conversion`) handles timsTOF data without the ion mob
 
 1. Open `TsfReader` (SDK + SQLite connection to `analysis.tsf`)
 2. Build `AcquisitionMetadata` from GlobalMetadata
-3. Read frame metadata; MS2 info comes from the `FrameMsMsInfo` table (TriggerMass, IsolationWidth, CollisionEnergy). For schema v5 the `Fragmentation*` tables are read directly (the view drops ExD frames), with the ExD fields and the linked CID step; this is not yet tested on real TSF v5 data.
+3. Read frame metadata; MS2 frames are `MsMsType` 2 and 3 (`TSF_MSMS_TYPES_MS2`; ExD frames of schema v5 are type 3). MS2 info comes from the `FrameMsMsInfo` table (TriggerMass, IsolationWidth, CollisionEnergy). For schema v5 the `Fragmentation*` tables are read directly (the view drops ExD frames), with the ExD fields and the linked CID step. This is tested only with an in-memory database, not with a real TSF v5 file. There is no precursor group on TSF.
 4. Count the spectra: MS1 frames plus MS2 frames that have MS2 info. A frame without info is skipped, so it is not counted in the header.
 5. No PASEF batching, no DIA -- simple interleaved MS1/MS2 iteration
 6. Extract spectra using `tsf_read_line_spectrum_v2`

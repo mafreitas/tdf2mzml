@@ -39,7 +39,7 @@ All notable changes to tdf2mzml are documented in this file.
 - **File checksum and index offsets did not follow the mzML schema.** The SHA-1 now covers the file up to and including the `<fileChecksum>` open tag (it stopped before the tag). Spectrum offsets and `indexListOffset` now point at the tag, not at the indentation before it.
 - **Quotes in the operator name, method name or acquisition time broke the XML** in the run header (the same bug class as the 0.6.1 fix, missed there).
 - **CV list:** PSI-MS is declared as version 4.2.15 (it said 4.1.30, older than terms we write, such as `MS:1003294`), and the Unit Ontology URI is `http://purl.obolibrary.org/obo/uo.obo` (the old URL returns 404).
-- **TSF:** MS2 frames without a `FrameMsMsInfo` row were skipped but still counted in `spectrumList count`. They are no longer counted. For schema v5 the `Fragmentation*` tables are read directly, so ExD frames are not lost (not yet tested on real TSF v5 data).
+- **TSF:** MS2 frames without MS2 info were skipped but still counted in `spectrumList count`. They are no longer counted. TSF schema v5 support is partial: MS2 frames of `MsMsType` 2 and 3 are read (ExD frames are type 3), and the `Fragmentation*` tables are read directly because the `FrameMsMsInfo` view drops ExD frames. It is tested only with an in-memory database, not with a real TSF v5 file. There is no precursor group on TSF.
 - **BAF:** an MS2 spectrum without precursor data was written with a precursor m/z of 0. It is now written without a `<precursorList>`, and a warning is logged.
 
 ### Known limits
@@ -47,6 +47,7 @@ All notable changes to tdf2mzml are documented in this file.
 - The reaction time is written as a `reaction time` userParam (ms), because PSI-MS has no term for it.
 - A precursor whose frames have different activation settings gets one merged spectrum, labelled with its first activation. The converter logs a warning. The guided-PASEF files tested so far do not have such precursors.
 - ExD in DIA-PASEF and PRM-PASEF is not supported. MS^n with n > 2 is written as ms level 2.
+- TSF schema v5 is tested only with an in-memory database. There is no precursor group on TSF.
 
 ## [0.6.1] — 2026-09-24
 

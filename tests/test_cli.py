@@ -6,12 +6,15 @@ The databases are built in memory and the zip files are tiny, so no Bruker data 
 from __future__ import annotations
 
 import sqlite3
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
+
+from test_writer import _meta
 
 try:
     from tdf2mzml import cli
@@ -334,3 +337,85 @@ class TestTsfFragmentationInfo:
             "PrecursorCharge": 2,
             "CollisionEnergy": 30.0,
         }
+
+
+class TestTsfConversion:
+    """TSF schema v5: ExD MS2 frames are MsMsType 3 and must be counted and written."""
+
+    class _FakeReader:
+        """Stand-in for TsfReader: 1 MS1 frame and four MS2 frames of different kinds."""
+
+        def __init__(self, path: object) -> None:
+            self.metadata = _meta()
+
+        def __enter__(self) -> TestTsfConversion._FakeReader:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def get_all_frames(self) -> list[tuple[int, float, str, int, int]]:
+            # (Id, Time, Polarity, ScanMode, MsMsType)
+            return [
+                (1, 1.0, "+", 0, 0),
+                (2, 2.0, "+", 1, 3),  # ExD then CID
+                (3, 3.0, "+", 1, 2),  # CID
+                (4, 4.0, "+", 1, 3),  # no MS2 info: skipped, must not be counted
+                (5, 5.0, "+", 1, 2),  # outside the requested range below
+            ]
+
+        def get_ms2_info_batch(self, frame_ids: list[int]) -> dict[int, dict[str, object]]:
+            base = {"Parent": 1, "TriggerMass": 700.5, "IsolationWidth": 2.0}
+            info = {
+                2: {
+                    **base,
+                    "PrecursorCharge": 2,
+                    "CollisionEnergy": 57.5,
+                    "ReactionTime": 30.0,
+                    "ElectronEnergy": 0.0,
+                },
+                3: {**base, "PrecursorCharge": 2, "CollisionEnergy": 30.0},
+                5: {**base, "PrecursorCharge": 2, "CollisionEnergy": 30.0},
+            }
+            return {f: info[f] for f in frame_ids if f in info}
+
+        def read_line_spectrum(self, frame_id: int) -> tuple[np.ndarray, np.ndarray]:
+            return np.array([100.0, 200.0]), np.array([50.0, 60.0], dtype=np.float32)
+
+    def test_exd_frame_of_type_3_is_counted_and_written(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        d = tmp_path / "s.d"
+        d.mkdir()
+        (d / "analysis.tsf").write_bytes(b"")
+        monkeypatch.setattr(cli, "TsfReader", self._FakeReader)
+        out = tmp_path / "o.mzML"
+
+        cli.run_tsf_conversion(ConversionConfig(input=d, output=out, end_frame=4))
+
+        root = ET.parse(out).getroot()
+        spectra = root.findall(".//{*}spectrum")
+        assert root.find(".//{*}spectrumList").attrib["count"] == "3"  # type: ignore[union-attr]
+        assert len(spectra) == 3  # frame 1, 2, 3; frame 4 has no info; frame 5 is out of range
+        names = [
+            [p.attrib["name"] for p in s.findall(".//{*}activation/{*}cvParam")] for s in spectra
+        ]
+        assert names[0] == []  # MS1
+        assert names[1][0] == "electron activated dissociation"  # frame 2, type 3
+        assert "supplemental collision energy" in names[1]
+        assert names[2] == ["collision-induced dissociation", "collision energy"]  # frame 3
+
+    def test_metadata_counts_type_2_and_3_as_ms2(self) -> None:
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE GlobalMetadata (Key TEXT, Value TEXT)")
+        conn.execute("CREATE TABLE Frames (Id INTEGER PRIMARY KEY, MsMsType INTEGER)")
+        conn.executemany("INSERT INTO Frames VALUES (?, ?)", list(enumerate([0, 2, 3, 3, 0], 1)))
+        reader = TsfReader.__new__(TsfReader)
+        reader._tsf = SimpleNamespace(conn=conn)  # type: ignore[attr-defined]
+        reader._metadata = None
+
+        meta = reader.metadata
+
+        assert meta.ms1_spectra_count == 2
+        assert meta.ms2_dda_count == 3
+        assert meta.total_spectra == 5

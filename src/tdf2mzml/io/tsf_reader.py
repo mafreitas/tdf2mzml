@@ -44,7 +44,8 @@ logger = logging.getLogger(__name__)
 
 # TSF MsMsType values
 TSF_MSMS_TYPE_MS1: int = 0
-TSF_MSMS_TYPE_AUTO_MSMS: int = 2
+# 2 = MS/MS fragment frame, 3 = MSn fragment frame. Schema v5 ExD frames are type 3.
+TSF_MSMS_TYPES_MS2: tuple[int, ...] = (2, 3)
 
 # Schema v5: the FrameMsMsInfo view drops ExD frames (it joins FragmentationCid), so the
 # Fragmentation* tables are read directly. The CID step that follows an ExD step (ECcID) is
@@ -147,8 +148,9 @@ class TsfReader:
             f"SELECT COUNT(*) FROM Frames WHERE MsMsType={TSF_MSMS_TYPE_MS1}"
         ).fetchone()[0]
 
+        ms2_types = ", ".join(str(t) for t in TSF_MSMS_TYPES_MS2)
         ms2_count: int = conn.execute(
-            f"SELECT COUNT(*) FROM Frames WHERE MsMsType={TSF_MSMS_TYPE_AUTO_MSMS}"
+            f"SELECT COUNT(*) FROM Frames WHERE MsMsType IN ({ms2_types})"
         ).fetchone()[0]
 
         total = ms1_count + ms2_count

@@ -32,7 +32,7 @@ from tdf2mzml.constants import (
 )
 from tdf2mzml.io.baf_reader import BAF_MS_LEVEL_MS1, BAF_POLARITY_POSITIVE, BafReader
 from tdf2mzml.io.reader import TdfReader
-from tdf2mzml.io.tsf_reader import TSF_MSMS_TYPE_AUTO_MSMS, TSF_MSMS_TYPE_MS1, TsfReader
+from tdf2mzml.io.tsf_reader import TSF_MSMS_TYPE_MS1, TSF_MSMS_TYPES_MS2, TsfReader
 from tdf2mzml.models.config import ConversionConfig
 from tdf2mzml.models.spectrum import PrecursorInfo, SpectrumArrays
 from tdf2mzml.output.writer import IndexedMzMLWriter
@@ -343,7 +343,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
         ms2_frame_ids = [
             int(f[0])
             for f in all_frames
-            if start_frame <= int(f[0]) <= end_frame and int(f[4]) == TSF_MSMS_TYPE_AUTO_MSMS
+            if start_frame <= int(f[0]) <= end_frame and int(f[4]) in TSF_MSMS_TYPES_MS2
         ]
         ms2_info_cache = reader.get_ms2_info_batch(ms2_frame_ids)
 
@@ -355,7 +355,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
             if start_frame <= int(f[0]) <= end_frame
             and (
                 int(f[4]) == TSF_MSMS_TYPE_MS1
-                or (int(f[4]) == TSF_MSMS_TYPE_AUTO_MSMS and int(f[0]) in ms2_info_cache)
+                or (int(f[4]) in TSF_MSMS_TYPES_MS2 and int(f[0]) in ms2_info_cache)
             )
         )
 
@@ -411,10 +411,10 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                     ms1_spectrum_id_by_frame[frame_id] = last_ms1_spectrum_id
                     progress.update(ms_level=1)
 
-                elif msms_type == TSF_MSMS_TYPE_AUTO_MSMS:
+                elif msms_type in TSF_MSMS_TYPES_MS2:
                     info = ms2_info_cache.get(frame_id)
                     if info is None:
-                        logger.warning("Frame %d: no FrameMsMsInfo entry, skipping", frame_id)
+                        logger.warning("Frame %d: no MS2 info, skipping", frame_id)
                         continue
 
                     # Resolve parent MS1 spectrum ID

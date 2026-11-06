@@ -4,13 +4,13 @@ This module wraps the compiled Bruker TIMS SDK shared library
 (``libtimsdata.so`` on Linux, ``timsdata.dll`` on Windows) using ctypes.
 The binaries live in ``src/tdf2mzml/libs/`` and are bundled with the package.
 
-SDK version: 3.3.6.2
+SDK version: 5.0.4
 
 Notes
 -----
 Bruker provides a reference ctypes example at
 ``timsdata/examples/py/timsdata.py``.  This module is our own clean,
-fully-typed reimplementation of that interface, using the v3.3.6.2 API
+fully-typed reimplementation of that interface, using the v5.0.4 API
 (``tims_open_v2``, ``tims_read_pasef_msms_v2``,
 ``tims_extract_centroided_spectrum_for_frame_v2``, etc.).
 
@@ -60,7 +60,7 @@ else:
 _dll = cdll.LoadLibrary(_lib_path)
 
 # ---------------------------------------------------------------------------
-# DLL function signatures — SDK v3.3.6.2
+# DLL function signatures — SDK v5.0.4
 # ---------------------------------------------------------------------------
 
 # open / close

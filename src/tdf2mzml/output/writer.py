@@ -10,7 +10,6 @@ import logging
 from pathlib import Path
 from platform import python_version
 from typing import Literal
-from xml.sax.saxutils import escape as _xml_escape
 
 import numpy as np
 import numpy.typing as npt
@@ -87,8 +86,14 @@ class IndexedMzMLWriter:
         self._write_header()
         return self
 
-    def __exit__(self, *_: object) -> None:
-        """Finalise and close the output file on context manager exit."""
+    def __exit__(self, exc_type: object, *_: object) -> None:
+        """Finalise and close the output file, or delete it when an error is in flight."""
+        if exc_type is not None:
+            # A half-written file must not look complete: no index, no checksum.
+            self._fh.close()
+            self._path.unlink(missing_ok=True)
+            logger.error("Conversion failed; removed incomplete output %s", self._path)
+            return
         self.finalize()
 
     # ------------------------------------------------------------------
@@ -125,13 +130,13 @@ class IndexedMzMLWriter:
 
         source_files = [
             {
-                "id": str(db_path).replace("/", "__"),
+                "id": "SF1",
                 "name": db_name,
                 "location": str(inp),
                 "sha1": _src_sha1(db_path),
             },
             {
-                "id": str(bin_path).replace("/", "__"),
+                "id": "SF2",
                 "name": bin_name,
                 "location": str(inp),
                 "sha1": _src_sha1(bin_path),
@@ -147,7 +152,7 @@ class IndexedMzMLWriter:
                 "user_params": [{"name": "software name", "value": "TIMS SDK"}],
             },
             {
-                "id": meta.acq_software,
+                "id": xe.xml_id(meta.acq_software),
                 "version": meta.acq_software_version,
                 "cv_name": "micrOTOFcontrol",
                 "cv_accession": CV_MICROTOFCONTROL,
@@ -178,9 +183,8 @@ class IndexedMzMLWriter:
         self._write(xe.sample_list(meta.sample_name, description=meta.description))
         self._write(xe.data_processing_list(__version__))
 
-        # Build a safe run ID from sample name or fall back to analysis_id / "1"
-        run_id = meta.sample_name.replace(" ", "_").replace("/", "_") or meta.analysis_id or "1"
-        run_id = _xml_escape(run_id)
+        # Build a valid XML ID from sample name or fall back to analysis_id / "1"
+        run_id = xe.xml_id(meta.sample_name or meta.analysis_id or "1")
         # Warn if acquisition was not closed cleanly
         if not meta.closed_properly:
             logger.warning(
@@ -193,17 +197,17 @@ class IndexedMzMLWriter:
             f'defaultInstrumentConfigurationRef="IC1" '
             f'defaultSourceFileRef="{source_files[0]["id"]}" '
             f'sampleRef="S1" '
-            f'startTimeStamp="{meta.acq_date_time}"'
+            f'startTimeStamp="{xe._xml_attr(meta.acq_date_time)}"'
         )
         # Embed operator name and method as userParams on the run element
         operator_param = (
-            f'\n      <userParam name="contact name" value="{_xml_escape(meta.operator_name)}"/>'
+            f'\n      <userParam name="contact name" value="{xe._xml_attr(meta.operator_name)}"/>'
             if meta.operator_name
             else ""
         )
         method_param = (
             f'\n      <userParam name="acquisition method" '
-            f'value="{_xml_escape(meta.method_name)}"/>'
+            f'value="{xe._xml_attr(meta.method_name)}"/>'
             if meta.method_name
             else ""
         )
@@ -269,7 +273,7 @@ class IndexedMzMLWriter:
         self,
         arrays: SpectrumArrays,
         scan_start_time: float,
-        precursor: PrecursorInfo,
+        precursor: PrecursorInfo | None,
         one_over_k0: float | None = None,
         polarity: str | None = None,
     ) -> str:
@@ -281,8 +285,9 @@ class IndexedMzMLWriter:
             m/z and intensity arrays for the spectrum.
         scan_start_time : float
             Scan start time in minutes.
-        precursor : PrecursorInfo
-            Precursor ion metadata.
+        precursor : PrecursorInfo or None
+            Precursor ion metadata. ``None`` writes the spectrum without a
+            ``<precursorList>`` (the source has no precursor data).
         one_over_k0 : float or None, optional
             Mean 1/K0 for this spectrum (falls back to
             ``precursor.one_over_k0`` if None).
@@ -296,7 +301,9 @@ class IndexedMzMLWriter:
             The spectrum ID string assigned to this spectrum.
         """
         spectrum_id = f"index={self._spectrum_index + 1}"
-        ook0 = one_over_k0 if one_over_k0 is not None else precursor.one_over_k0
+        ook0 = one_over_k0
+        if ook0 is None and precursor is not None:
+            ook0 = precursor.one_over_k0
         return self._write_spectrum(
             spectrum_id=spectrum_id,
             ms_level=2,
@@ -340,7 +347,6 @@ class IndexedMzMLWriter:
             bp_int = float(arrays.intensity[bp_idx])
 
         offset = self._tell()
-        self._offsets.append((spectrum_id, offset))
 
         block = xe.spectrum_element(
             spectrum_id=spectrum_id,
@@ -363,12 +369,18 @@ class IndexedMzMLWriter:
             isolation_window_lower=precursor.isolation_window_lower if precursor else None,
             isolation_window_upper=precursor.isolation_window_upper if precursor else None,
             collision_energy=precursor.collision_energy if precursor else None,
+            activation=precursor.activation if precursor else "CID",
+            electron_energy=precursor.electron_energy if precursor else None,
+            reaction_time_ms=precursor.reaction_time_ms if precursor else None,
+            precursor_group=precursor.precursor_group if precursor else None,
             one_over_k0=one_over_k0,
             ion_mobility_array=ion_mobility_array,
             ook0_window_lower=meta.one_over_k0_range_lower or None,
             ook0_window_upper=meta.one_over_k0_range_upper or None,
             polarity=polarity,
         )
+        # The index offset must point at "<spectrum", not at the indentation before it.
+        self._offsets.append((spectrum_id, offset + len(block) - len(block.lstrip(b" "))))
         self._write(block)
         self._spectrum_index += 1
         return spectrum_id
@@ -394,8 +406,8 @@ class IndexedMzMLWriter:
         self._write(b"    </run>\n")
         self._write(b"  </mzML>\n")
 
-        # Write index
-        index_list_offset = self._tell()
+        # Write index. Offsets point at the tag itself, after the 2-space indent.
+        index_list_offset = self._tell() + 2
         self._write(b'  <indexList count="1">\n')
         self._write(b'    <index name="spectrum">\n')
         for sid, off in self._offsets:
@@ -406,12 +418,13 @@ class IndexedMzMLWriter:
         # indexListOffset
         self._write(f"  <indexListOffset>{index_list_offset}</indexListOffset>\n".encode())
 
-        # Flush all buffered data so sha1 digest is complete
+        # The mzML checksum covers every byte up to and including the "<fileChecksum>" tag.
+        self._write(b"  <fileChecksum>")
         self._flush()
         sha1_hex = self._sha1.hexdigest()
 
-        # Write fileChecksum and closing tag directly — not part of the checksum
-        tail = (f"  <fileChecksum>{sha1_hex}</fileChecksum>\n</indexedmzML>\n").encode()
+        # The digest and the closing tags are not part of the checksum
+        tail = (f"{sha1_hex}</fileChecksum>\n</indexedmzML>\n").encode()
         self._fh.write(tail)
 
         self._fh.close()

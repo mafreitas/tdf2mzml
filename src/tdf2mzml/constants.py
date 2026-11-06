@@ -8,7 +8,7 @@ reference names rather than raw literals.
 # Bruker SDK
 # ---------------------------------------------------------------------------
 
-SDK_VERSION: str = "2.8.7"
+SDK_VERSION: str = "5.0.4"
 """Version of the bundled Bruker TIMS SDK shared library."""
 
 TIMS_SDK_SOFTWARE_ID: str = "TIMS_SDK"
@@ -145,6 +145,11 @@ CV_MICROTOFCONTROL: str = "MS:1000726"  # micrOTOFcontrol
 # Activation
 CV_CID: str = "MS:1000133"  # collision-induced dissociation
 CV_COLLISION_ENERGY: str = "MS:1000045"  # collision energy
+CV_ETD: str = "MS:1000598"  # electron transfer dissociation
+CV_EAD: str = "MS:1003294"  # electron activated dissociation (generic ExD)
+CV_ELECTRON_BEAM_ENERGY: str = "MS:1003410"  # electron beam energy
+CV_SUPPLEMENTAL_CID: str = "MS:1002679"  # supplemental collision-induced dissociation
+CV_SUPPLEMENTAL_COLLISION_ENERGY: str = "MS:1002680"  # supplemental collision energy
 
 # Precursor / isolation
 CV_SELECTED_ION_MZ: str = "MS:1000744"  # selected ion m/z
@@ -163,6 +168,7 @@ CV_CONVERSION_TO_MZML: str = "MS:1000544"  # Conversion to mzML
 UNIT_MZ: str = "MS:1000040"  # m/z
 UNIT_MINUTE: str = "UO:0000031"  # minute
 UNIT_ELECTRONVOLT: str = "UO:0000266"  # electronvolt
+UNIT_MILLISECOND: str = "UO:0000028"  # millisecond
 UNIT_COUNTS: str = "MS:1000131"  # number of detector counts
 UNIT_VSCC: str = "MS:1002814"  # volt-second per square centimeter
 
@@ -188,6 +194,9 @@ CV_UO_URI: str = (
 DEFAULT_MS1_TYPE: str = "centroid"
 DEFAULT_MS1_THRESHOLD: float = 100.0
 DEFAULT_MS2_THRESHOLD: float = 10.0
+"""MS2 intensity threshold for TSF and BAF when ``--ms2_threshold`` is not given."""
+DEFAULT_TDF_MS2_THRESHOLD: float = 0.0
+"""MS2 intensity threshold for TDF when ``--ms2_threshold`` is not given (no filtering)."""
 DEFAULT_MS2_NLARGEST: int = -1
 DEFAULT_COMPRESSION: str = "none"
 DEFAULT_ION_MOBILITY_MODE: str = "mean"

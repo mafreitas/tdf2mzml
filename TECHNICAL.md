@@ -75,7 +75,7 @@ The main entry point (`main()`) builds an argument parser, constructs a `Convers
 
 **AcquisitionMetadata** (`metadata.py`): Instrument configuration, acquisition parameters, and run-level metadata extracted from the GlobalMetadata table (TDF/TSF) or the Spectra/AcquisitionKeys tables (BAF).
 
-**PrecursorInfo** (`spectrum.py`): Per-MS2-spectrum precursor data: selected ion m/z, charge state, isolation window offsets, collision energy, and scan number range (for PASEF).
+**PrecursorInfo** (`spectrum.py`): Per-MS2-spectrum precursor data: selected ion m/z, charge state, isolation window offsets, collision energy, activation method (CID, ETD or ExD) with electron energy and reaction time, and scan number range (for PASEF).
 
 **SpectrumArrays** (`spectrum.py`): Container for the numeric arrays that make up a spectrum: m/z, intensity, and optionally ion mobility (1/K0) arrays.
 
@@ -125,7 +125,7 @@ The TDF pipeline (`run_conversion` + `_write_spectra`) handles timsTOF PASEF dat
 
 5. **Bulk-load DDA precursors**: A single SQL query retrieves all precursor entries (selected m/z, charge, scan number, parent frame) for the entire frame range.
 
-6. **Bulk-load PASEF frame info**: A single SQL query retrieves isolation m/z, isolation width, collision energy, and scan number ranges for all precursor entries.
+6. **Bulk-load PASEF frame info**: A single SQL query retrieves isolation m/z, isolation width, collision energy, and scan number ranges for all precursor entries. For schema v5 (detected by the `FragmentationStep` table) the query reads the `Fragmentation*` tables directly, because the `PasefFrameMsMsInfo` view drops ExD frames. It also returns the ExD electron energy and reaction time, the collision energy of a CID step that follows the precursor's step (ECcID, linked through `FragmentationStepToStep`), and, for schema 5.1, `FragmentationPrecursor.PrecursorGroup` (written as the `precursor group` userParam). Each frame of a precursor has its own step, so the first step of the precursor is used.
 
 7. **Open writer**: Instantiate `IndexedMzMLWriter`, which writes the XML preamble and all header sections (cvList, fileDescription, softwareList, instrumentConfigurationList, sampleList, dataProcessingList, opening run and spectrumList tags).
 
@@ -140,20 +140,29 @@ The TDF pipeline (`run_conversion` + `_write_spectra`) handles timsTOF PASEF dat
      - Emit all DDA precursors whose `Parent` frame matches the current MS1 frame
      - Use batch SDK call `read_pasef_msms` for efficient extraction
      - Batch scan-index-to-1/K0 conversion
-     - Build `PrecursorInfo` with isolation window offsets (computed from the PASEF frame info)
-     - Write each MS2 spectrum element
+     - Build `PrecursorInfo` with isolation window offsets (computed from the PASEF frame info) and the activation method: ExD when the electron energy is set, ETD when only a reaction time is set, otherwise CID
+     - Write each MS2 spectrum element. ExD and ECcID MS2 frames of schema v5 are `MsMsType=3`; they are not iterated. The SDK sums all frames of a precursor in `read_pasef_msms`.
 
    - **DIA frames** (MsMsType=9):
+     - The windows of every DIA frame are read once before the loop (`get_dia_windows_by_frame`, one query per window group) and used for both the spectrum count and the writing
      - For each window in the frame's window group, extract a centroided spectrum over the scan range defined by the window
      - Build `PrecursorInfo` from the DIA window definition (target m/z, isolation width)
      - Write the MS2 spectrum element
 
+   MS2 spectra (DDA and DIA) pass through `filter_peaks` (`--ms2_threshold`, `--ms2_nlargest`) before writing. For TDF the default threshold is 0, so nothing is removed unless the user asks.
+
 9. **Finalize**:
    - Close the `</spectrumList>`, `</run>`, `</mzML>` tags
-   - Write the `<indexList>` containing byte offsets for every spectrum
-   - Write the `<indexListOffset>` value
-   - Compute and write `<fileChecksum>` (SHA-1 of everything before the checksum element)
+   - Write the `<indexList>` containing byte offsets for every spectrum (each offset points at the `<spectrum` tag)
+   - Write the `<indexListOffset>` value (it points at the `<indexList` tag)
+   - Write `<fileChecksum>`: the SHA-1 covers every byte from the start of the file to the end of the `<fileChecksum>` open tag, as the mzML schema says
    - Close `</indexedmzML>`
+
+   If an error occurs during the conversion, the writer closes and deletes the partial output file instead of finalizing it.
+
+### Zip input
+
+A `.zip` input is extracted by `run_conversion` into a temporary directory (`tempfile.TemporaryDirectory`), converted, and the directory is removed at the end, also after an error. `ConversionConfig` does not extract anything. The default output name for `x.d.zip` is `x.mzML`; an output path equal to the input path is refused.
 
 ### TSF Conversion Pipeline
 
@@ -161,10 +170,11 @@ The TSF pipeline (`run_tsf_conversion`) handles timsTOF data without the ion mob
 
 1. Open `TsfReader` (SDK + SQLite connection to `analysis.tsf`)
 2. Build `AcquisitionMetadata` from GlobalMetadata
-3. Read frame metadata; MS2 info comes from the `FrameMsMsInfo` table (TriggerMass, IsolationWidth, CollisionEnergy)
-4. No PASEF batching, no DIA -- simple interleaved MS1/MS2 iteration
-5. Extract spectra using `tsf_read_line_spectrum_v2`
-6. Write via `IndexedMzMLWriter` with the same finalization as TDF
+3. Read frame metadata; MS2 info comes from the `FrameMsMsInfo` table (TriggerMass, IsolationWidth, CollisionEnergy). For schema v5 the `Fragmentation*` tables are read directly (the view drops ExD frames), with the ExD fields and the linked CID step; this is not yet tested on real TSF v5 data.
+4. Count the spectra: MS1 frames plus MS2 frames that have MS2 info. A frame without info is skipped, so it is not counted in the header.
+5. No PASEF batching, no DIA -- simple interleaved MS1/MS2 iteration
+6. Extract spectra using `tsf_read_line_spectrum_v2`
+7. Write via `IndexedMzMLWriter` with the same finalization as TDF
 
 ### BAF Conversion Pipeline
 
@@ -276,9 +286,11 @@ The output conforms to the indexed mzML 1.1.0 specification:
 
 - **Buffered writer**: The writer uses 4 MB write buffers to reduce system call overhead while maintaining an accurate running byte count.
 
-- **Incremental SHA-1**: A SHA-1 hash is updated incrementally as bytes are written. The `<fileChecksum>` value covers all bytes from the start of the file up to (but not including) the `<fileChecksum>` element itself.
+- **Incremental SHA-1**: A SHA-1 hash is updated incrementally as bytes are written. The `<fileChecksum>` value covers all bytes from the start of the file up to and including the `<fileChecksum>` open tag (the mzML schema rule).
 
-- **Byte-offset index**: As each `<spectrum>` element is written, its starting byte offset is recorded. These offsets are emitted in the `<indexList>` section after the `</mzML>` closing tag, enabling random access by any mzML reader.
+- **Byte-offset index**: As each `<spectrum>` element is written, the byte offset of its `<spectrum` tag (after the indentation) is recorded. These offsets are emitted in the `<indexList>` section after the `</mzML>` closing tag, enabling random access by any mzML reader.
+
+- **XML IDs**: `run`, `sourceFile` (`SF1`, `SF2`) and `software` IDs are valid `xs:ID` values (`xml_id()` in `xml_elements.py`). Text from the instrument goes into attributes through `_xml_attr()`, which also escapes quotes.
 
 ---
 
@@ -319,11 +331,13 @@ tdf2mzml bundles the following Bruker SDK shared libraries in `src/tdf2mzml/libs
 
 | Library | Platform | Purpose |
 |---------|----------|---------|
-| `libtimsdata.so` | Linux | TDF and TSF format access |
-| `timsdata.dll` | Windows | TDF and TSF format access |
+| `libtimsdata.so` | Linux | TDF and TSF format access (Bruker TDF-SDK 5.0.4) |
+| `timsdata.dll` | Windows | TDF and TSF format access (Bruker TDF-SDK 5.0.4) |
 | `libbaf2sql_c.so` | Linux | BAF format access (generates SQLite from binary BAF) |
 
-These libraries are loaded at runtime via ctypes. The Python wrappers (`timsdata.py`, `bafdata.py`) define the C function signatures and handle platform-specific library loading.
+These libraries are loaded at runtime via ctypes. The Python wrappers (`timsdata.py`, `bafdata.py`) define the C function signatures and handle platform-specific library loading. `THIRD-PARTY-LICENSE-README.txt` must stay with the TDF libraries (SDK redistribution terms).
+
+SDK 5.0.4 is required for TDF schema v5; SDK 3.3.701 returns "TDF schema version 5.0 not supported". SDK 5.x also reads schema 3.x data, but its centroider gives slightly different peak areas for closely spaced peaks than SDK 3.3.701. See the 0.7.0 entry in `CHANGELOG.md`.
 
 ---
 

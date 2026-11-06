@@ -243,8 +243,8 @@ class BafReader:
         Returns
         -------
         dict
-            ``{spectrum_id: {"mass": float, "collision_energy": float|None,
-            "isolation_width": float|None}}``
+            ``{spectrum_id: {"mass": float|None, "collision_energy": float|None,
+                "isolation_width": float|None}}``; a spectrum without a step has no entry.
         """
         if not spectrum_ids:
             return {}
@@ -262,7 +262,7 @@ class BafReader:
         result: dict[int, dict[str, float | None]] = {}
         for spec_id, mass in steps_rows:
             result[int(spec_id)] = {
-                "mass": float(mass) if mass is not None else 0.0,
+                "mass": float(mass) if mass is not None else None,
                 "collision_energy": None,
                 "isolation_width": None,
             }

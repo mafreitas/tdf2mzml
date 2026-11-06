@@ -2,6 +2,52 @@
 
 All notable changes to tdf2mzml are documented in this file.
 
+## [0.7.0] — Unreleased
+
+### Added
+- **TDF schema v5 support** — reads schema 5.x (timsOmni, acquisition software 8.x) data. Schema v5 replaces the old MS/MS tables with views, and the views drop ExD frames, so the `Fragmentation*` tables are read directly for schema v5. Data with schema 3.x and 4.x use the same code as before.
+- **ExD DDA-PASEF** — ECD, EID and other electron-based fragmentation. The MS2 frames of these runs have `MsMsType=3`, not 8; the previous version wrote MS1 spectra only for them. One MS2 spectrum is written for each precursor.
+- **ECcID (ExD followed by CID)** — the CID step linked through `FragmentationStepToStep` is read as part of the same activation. The instrument records one spectrum for the chain, so one MS2 spectrum (ms level 2) is written.
+- **Guided-PASEF (schema 5.1 and 5.2)** — files with CID and ExD (ECciD, EIciD) precursors in one run convert, with one MS2 spectrum for each precursor. The `FragmentationPrecursor.PrecursorGroup` column links the CID and ExD spectra of the same ion: both get a `<userParam name="precursor group" value="N"/>` on the `<spectrum>` element. A group has one CID spectrum (its precursor ID is the group value) and one ExD spectrum. They have the same selected ion m/z, and the ExD spectrum follows the CID spectrum within about 0.5 s. mzML has no standard term for this link. Precursors without a group (plain CID), and data older than schema 5.1, have no such parameter.
+- **Activation terms in `<activation>`:**
+  - ExD: `MS:1003294` electron activated dissociation, `MS:1003410` electron beam energy (eV) and a `reaction time` userParam (ms).
+  - ECcID: the ExD terms plus `MS:1002679` supplemental collision-induced dissociation and `MS:1002680` supplemental collision energy (eV).
+  - ETD: `MS:1000598` and the `reaction time` userParam.
+  - CID output is unchanged.
+- `THIRD-PARTY-LICENSE-README.txt` is now shipped with the SDK libraries, as the SDK redistribution terms require.
+- The SDK version written to the `<softwareList>` of the mzML is now `5.0.4` (it was `2.8.7`, which was out of date).
+
+### Changed
+- **Bruker TDF-SDK 5.0.4** replaces SDK 3.3.701 (`timsdata.dll`, `libtimsdata.so`, `timsdata.lib`). SDK 3.3.701 cannot open schema v5 data. SDK 5.0.4 also opens schema 3.x data, and the spectrum count, peak count and metadata layout are the same as before.
+- **Centroided peak areas change slightly for existing data.** The centroider in SDK 5.x splits the shared area of closely spaced peaks (about 40 ppm apart) at bin boundaries. SDK 3.3.701 split the shared bin by a fraction. The total of the two peaks is the same. No SDK parameter restores the old split. Measured on five schema 3.1, 3.6 and 3.8 datasets (DDA and DIA):
+  - Raw scans, profile data, calibration and the MS1 and DIA centroid m/z values are identical.
+  - MS1: 8 to 18 % of the centroided peaks have a different intensity (median 7 %). The TIC differs by 3e-6 or less.
+  - DIA MS2: about 6 % of the peaks have a different intensity. The TIC differs by 5e-4 or less.
+  - DDA MS2: 0.7 to 2.4 % of the peaks have a different intensity. The sparse peak picker moves m/z by up to 1 ppm. The TIC differs by 1.3e-3 or less. The base peak m/z changes in less than 2 % of the spectra.
+  - Results from this version and from 0.6.x on the same data are not byte-identical. Results from this version are repeatable.
+- File header differences from earlier 0.7.0 builds and 0.6.x: run and source-file IDs, the file checksum value, and the index offsets (see Fixed). Every `<spectrum>` element is byte-identical for the same input and options.
+- `Frames` and `DiaFrameMsMsWindows` are read with named columns instead of `SELECT *` (the SDK guide says the column order can change).
+- DIA windows are read once for all frames (one query per window group) instead of two queries per DIA frame, twice.
+- The precursor count for the spectrum header is a reader method (`count_precursors_in_range`); `cli.py` no longer runs SQL.
+
+### Fixed
+- **Zip input overwrote the zip** — `tdf2mzml -i x.d.zip` without `-o` used the input path as the output path and destroyed the archive. The default output for `x.d.zip` and `x.zip` is now `x.mzML`, the `.d` suffix is matched in any case, and an output path equal to the input path is refused.
+- **Zip input left its extracted data in the temp folder.** The archive is now extracted into a temporary directory that is removed at the end, also after an error.
+- **A failed conversion left a complete-looking file** (index, checksum and closing tags, but fewer spectra than `spectrumList count`). The partial output is now deleted when an error occurs.
+- **`--ms2_threshold` and `--ms2_nlargest` had no effect on TDF** (they worked for TSF and BAF only). They now apply to DDA and DIA MS2 spectra. The TDF default stays "no filtering" (threshold 0), so TDF output does not change unless the options are given. TSF and BAF keep the default threshold 10.
+- **mzML IDs were not valid XML IDs.** `run` IDs started with a digit, `sourceFile` IDs were file paths (`D:\...`), and `software` IDs had spaces. They are now valid `xs:ID` values: the run ID is the sample name made valid, source files are `SF1` and `SF2`.
+- **File checksum and index offsets did not follow the mzML schema.** The SHA-1 now covers the file up to and including the `<fileChecksum>` open tag (it stopped before the tag). Spectrum offsets and `indexListOffset` now point at the tag, not at the indentation before it.
+- **Quotes in the operator name, method name or acquisition time broke the XML** in the run header (the same bug class as the 0.6.1 fix, missed there).
+- **CV list:** PSI-MS is declared as version 4.2.15 (it said 4.1.30, older than terms we write, such as `MS:1003294`), and the Unit Ontology URI is `http://purl.obolibrary.org/obo/uo.obo` (the old URL returns 404).
+- **TSF:** MS2 frames without a `FrameMsMsInfo` row were skipped but still counted in `spectrumList count`. They are no longer counted. For schema v5 the `Fragmentation*` tables are read directly, so ExD frames are not lost (not yet tested on real TSF v5 data).
+- **BAF:** an MS2 spectrum without precursor data was written with a precursor m/z of 0. It is now written without a `<precursorList>`, and a warning is logged.
+
+### Known limits
+- ExD is written with the generic `MS:1003294` term. The schema does not say if a run is ECD or EID, so the electron beam energy value tells them apart.
+- The reaction time is written as a `reaction time` userParam (ms), because PSI-MS has no term for it.
+- A precursor whose frames have different activation settings gets one merged spectrum, labelled with its first activation. The converter logs a warning. The guided-PASEF files tested so far do not have such precursors.
+- ExD in DIA-PASEF and PRM-PASEF is not supported. MS^n with n > 2 is written as ms level 2.
+
 ## [0.6.1] — 2026-09-24
 
 ### Fixed

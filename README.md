@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml/badge.svg)](https://github.com/mafreitas/tdf2mzml/actions/workflows/ci.yml)
 
-**v0.6.1** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
+**v0.7.0** -- Convert Bruker mass spectrometry data to indexed mzML 1.1.0
 
 Author: Michael A. Freitas
 
@@ -16,11 +16,13 @@ tdf2mzml converts Bruker raw data directories into fully indexed mzML 1.1.0 file
 
 | Format | Instrument families | Acquisition modes |
 |--------|-------------------|-------------------|
-| **TDF** (timsTOF PASEF) | timsTOF Pro, timsTOF HT, timsTOF SCP | DDA-PASEF, DIA-PASEF |
+| **TDF** (timsTOF PASEF) | timsTOF Pro, timsTOF HT, timsTOF SCP, timsOmni | DDA-PASEF (CID, ExD, ECcID), DIA-PASEF |
 | **TSF** (timsTOF fleX / TIMS-off) | timsTOF fleX, timsTOF with TIMS disabled | MS1/MS2 interleaved |
 | **BAF** (classic QTOF) | maXis, impact, other Bruker QTOF | Standard MS1/MS2 |
 
 Format detection is automatic based on the contents of the `.d` directory (or a standalone `.baf` file).
+
+TDF schema versions 3.x, 4.x and 5.x are supported. For electron-based fragmentation (schema 5, timsOmni), the `<activation>` element of each MS2 spectrum has the matching terms: ExD (`MS:1003294`) with electron beam energy and reaction time, and supplemental CID terms when a CID step follows the ExD step (ECcID). A precursor gives one MS2 spectrum.
 
 ## Installation
 
@@ -45,7 +47,9 @@ make setup
 - `pydantic >= 2.0`
 - `numpy >= 1.24`
 
-The package bundles the required Bruker SDK libraries (`libtimsdata.so`, `timsdata.dll`, `libbaf2sql_c.so`) so no separate SDK installation is necessary.
+The package bundles the required Bruker SDK libraries (`libtimsdata.so`, `timsdata.dll`, `libbaf2sql_c.so`) so no separate SDK installation is necessary. The TDF library is Bruker TDF-SDK 5.0.4.
+
+> **Note for users of 0.6.x:** SDK 5.x centroids closely spaced peaks a little differently from SDK 3.3.701. Some centroided peak intensities change. The total ion current is almost the same. See the [CHANGELOG](CHANGELOG.md) for the measured effect.
 
 ## Quick Start
 
@@ -85,7 +89,7 @@ tdf2mzml [-h] -i INPUT [-o OUTPUT] [--ms1_type {centroid,profile,raw}]
 | `-o`, `--output` | Output `.mzML` file path | Derived from input |
 | `--ms1_type` | MS1 spectrum type: `centroid`, `profile`, or `raw` | `centroid` |
 | `--ms1_threshold` | Minimum intensity for raw MS1 spectra | `100.0` |
-| `--ms2_threshold` | Minimum intensity for MS2 spectra | `10.0` |
+| `--ms2_threshold` | Minimum intensity for MS2 spectra | `0` (no filtering) for TDF, `10.0` for TSF and BAF |
 | `--ms2_nlargest` | Keep only the N most intense MS2 peaks; `-1` keeps all | `-1` |
 | `-s`, `--start_frame` | First frame to convert; `-1` starts at the beginning | `-1` |
 | `-e`, `--end_frame` | Last frame to convert; `-1` converts to the end | `-1` |
@@ -196,8 +200,10 @@ The output conforms to the mzML 1.1.0 specification:
 - Unit-bearing parameters include full triplets (`unitCvRef`, `unitAccession`, `unitName`)
 - `<binaryDataArray>` elements include `encodedLength`
 - Spectrum IDs are 1-based (`id="index=1"`)
+- `run`, `sourceFile` and `software` IDs are valid XML IDs (`xs:ID`)
 - All CV accessions verified against the PSI-MS controlled vocabulary
-- Indexed mzML with byte-offset spectrum index and SHA-1 file checksum
+- Indexed mzML with byte-offset spectrum index (offsets point at the `<spectrum` tag) and a SHA-1 file checksum (from the start of the file to the end of the `<fileChecksum>` open tag, as the mzML schema says)
+- A failed conversion deletes its partial output, so an incomplete file is never left behind
 
 ## License
 

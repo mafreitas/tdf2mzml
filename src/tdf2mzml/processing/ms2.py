@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 
@@ -13,12 +14,65 @@ from tdf2mzml.models.spectrum import PrecursorInfo, PrecursorRow, SpectrumArrays
 logger = logging.getLogger(__name__)
 
 
+def activation_from_info(info: Mapping[str, Any]) -> tuple[str, float | None, float | None]:
+    """Pick the activation method from a precursor info row.
+
+    Parameters
+    ----------
+    info : mapping
+        Row with optional ``ElectronEnergy`` and ``ReactionTime`` (schema v5 fragmentation data).
+
+    Returns
+    -------
+    tuple
+        ``(activation, electron_energy, reaction_time_ms)``: ExD when an electron energy is
+        set, ETD when only a reaction time is set, otherwise CID.
+    """
+    electron_energy = info.get("ElectronEnergy")
+    reaction_time = info.get("ReactionTime")
+    if electron_energy is not None:
+        return "ExD", electron_energy, reaction_time
+    if reaction_time is not None:
+        return "ETD", None, reaction_time
+    return "CID", None, None
+
+
+def filter_peaks(arrays: SpectrumArrays, threshold: float, nlargest: int) -> SpectrumArrays:
+    """Drop weak peaks, then keep only the most intense ones.
+
+    Parameters
+    ----------
+    arrays : SpectrumArrays
+        Spectrum to filter.
+    threshold : float
+        Keep peaks with intensity >= *threshold*; ``0`` keeps all.
+    nlargest : int
+        Keep only this many most intense peaks (in m/z order); ``-1`` keeps all.
+
+    Returns
+    -------
+    SpectrumArrays
+        The filtered spectrum.
+    """
+    mz, intensity = arrays.mz, arrays.intensity
+    if threshold <= 0 and nlargest <= 0:
+        return arrays
+    if threshold > 0 and len(intensity) > 0:
+        mask = intensity >= threshold
+        mz, intensity = mz[mask], intensity[mask]
+    if nlargest > 0 and len(intensity) > nlargest:
+        top = np.argpartition(intensity, -nlargest)[-nlargest:]
+        top = top[np.argsort(mz[top])]
+        mz, intensity = mz[top], intensity[top]
+    return SpectrumArrays(mz=mz, intensity=intensity)
+
+
 def get_pasef_dda_ms2(
     reader: TdfReader,
     precursor: PrecursorRow,
     parent_spectrum_id: str,
     ms2_data: Mapping[int, tuple[object, object]] | None = None,
-    pasef_info: dict[int, dict[str, float]] | None = None,
+    pasef_info: dict[int, dict[str, float | None]] | None = None,
     one_over_k0: float | None = None,
 ) -> tuple[SpectrumArrays, PrecursorInfo]:
     """Extract a PASEF DDA MS2 spectrum and build its precursor metadata.
@@ -89,8 +143,11 @@ def get_pasef_dda_ms2(
         logger.warning("No PASEF frame info for precursor ID %d", precursor_id)
         _pasef = {"IsolationMz": 0.0, "CollisionEnergy": 0.0, "IsolationWidth": 0.0}
     isolation_mz = float(_pasef["IsolationMz"])  # type: ignore[arg-type]
-    collision_energy = float(_pasef["CollisionEnergy"])  # type: ignore[arg-type]
+    ce = _pasef["CollisionEnergy"]
+    collision_energy = None if ce is None else float(ce)
     isolation_width = float(_pasef["IsolationWidth"])  # type: ignore[arg-type]
+    group = _pasef.get("PrecursorGroup")
+    activation, electron_energy, reaction_time = activation_from_info(_pasef)
 
     # Determine selected ion m/z and isolation offsets
     charge = precursor.get("Charge")
@@ -111,7 +168,10 @@ def get_pasef_dda_ms2(
         isolation_window_upper=half_width + isolation_offset,
         one_over_k0=ook0,
         collision_energy=collision_energy,
-        activation="CID",
+        activation=activation,
+        electron_energy=electron_energy,
+        reaction_time_ms=reaction_time,
+        precursor_group=None if group is None else int(group),
     )
 
     return arrays, info

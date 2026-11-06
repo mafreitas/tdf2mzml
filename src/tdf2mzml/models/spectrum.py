@@ -83,9 +83,17 @@ class PrecursorInfo(BaseModel):
         Inverse reduced ion mobility (1/K0) of the precursor ion in
         V·s/cm²; ``None`` when not available.
     collision_energy : float
-        Collision energy applied (eV).
+        Collision energy applied (eV). For ``activation="ExD"`` this is the
+        energy of the CID step that follows the electron step (ECcID).
     activation : str
-        Activation method CV term name. Default is ``"CID"``.
+        Activation method: ``"CID"`` (default), ``"ETD"`` or ``"ExD"``.
+    electron_energy : float or None
+        Electron energy (eV) of an ExD step.
+    reaction_time_ms : float or None
+        Reaction time (ms) of an ETD or ExD step.
+    precursor_group : int or None
+        Guided-PASEF precursor group (schema 5.1), shared by the CID and ExD
+        precursors of one group; ``None`` when the precursor has no group.
     """
 
     model_config = {"frozen": True}
@@ -102,3 +110,6 @@ class PrecursorInfo(BaseModel):
     )
     collision_energy: float | None = None
     activation: str = "CID"
+    electron_energy: float | None = None
+    reaction_time_ms: float | None = None
+    precursor_group: int | None = None

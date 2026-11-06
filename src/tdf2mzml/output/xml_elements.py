@@ -11,6 +11,7 @@ file opened in binary mode.
 
 from __future__ import annotations
 
+import re
 import textwrap
 from typing import Literal
 from xml.sax.saxutils import escape as _xml_escape
@@ -31,7 +32,10 @@ from tdf2mzml.constants import (
     CV_CID,
     CV_COLLISION_ENERGY,
     CV_CONVERSION_TO_MZML,
+    CV_EAD,
+    CV_ELECTRON_BEAM_ENERGY,
     CV_ESI,
+    CV_ETD,
     CV_IM_LOWER_LIMIT,
     CV_IM_UPPER_LIMIT,
     CV_INSTRUMENT_SERIAL,
@@ -59,6 +63,8 @@ from tdf2mzml.constants import (
     CV_SCAN_WINDOW_UPPER,
     CV_SELECTED_ION_MZ,
     CV_SHA1,
+    CV_SUPPLEMENTAL_CID,
+    CV_SUPPLEMENTAL_COLLISION_ENERGY,
     CV_TOF_ANALYZER,
     CV_TOTAL_ION_CURRENT,
     CV_ZLIB_COMPRESSION,
@@ -67,6 +73,7 @@ from tdf2mzml.constants import (
     MZML_VERSION,
     UNIT_COUNTS,
     UNIT_ELECTRONVOLT,
+    UNIT_MILLISECOND,
     UNIT_MINUTE,
     UNIT_MZ,
     UNIT_VSCC,
@@ -93,6 +100,12 @@ def _indent(level: int) -> str:
 def _xml_attr(value: object) -> str:
     """Escape a value for use inside an XML attribute."""
     return _xml_escape(str(value), {'"': "&quot;"})
+
+
+def xml_id(value: str) -> str:
+    """Return *value* as a valid XML ID (``xs:ID``): letters, digits, ``.``, ``-``, ``_``."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", value)
+    return cleaned if cleaned[:1].isalpha() or cleaned[:1] == "_" else f"_{cleaned}"
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +145,45 @@ _SPECTRUM_TYPE_ACCESSION: dict[str, str] = {
     "centroid spectrum": CV_CENTROID_SPECTRUM,
     "profile spectrum": CV_PROFILE_SPECTRUM,
 }
+
+
+def _electron_activation(
+    activation: str,
+    collision_energy: float | None,
+    electron_energy: float | None,
+    reaction_time_ms: float | None,
+) -> str:
+    """Render the ``<activation>`` children of an ETD or ExD spectrum.
+
+    A *collision_energy* means a CID step follows the electron step (ECcID);
+    it is written with the PSI-MS "supplemental" terms.
+    """
+    ev = {"unit_accession": UNIT_ELECTRONVOLT, "unit_name": "electronvolt", "unit_cvref": "UO"}
+    if activation == "ETD":
+        parts = [_cv(CV_ETD, "electron transfer dissociation")]
+    else:
+        parts = [_cv(CV_EAD, "electron activated dissociation")]
+        if electron_energy is not None:
+            parts.append(
+                _cv(CV_ELECTRON_BEAM_ENERGY, "electron beam energy", str(electron_energy), **ev)
+            )
+    if reaction_time_ms is not None:
+        parts.append(
+            f'<userParam name="reaction time" value="{reaction_time_ms:g}" unitCvRef="UO" '
+            f'unitAccession="{UNIT_MILLISECOND}" unitName="millisecond"/>'
+        )
+    if collision_energy is not None:
+        parts.append(_cv(CV_SUPPLEMENTAL_CID, "supplemental collision-induced dissociation"))
+        parts.append(
+            _cv(
+                CV_SUPPLEMENTAL_COLLISION_ENERGY,
+                "supplemental collision energy",
+                str(collision_energy),
+                **ev,
+            )
+        )
+    return "\n".join(f"              {p}" for p in parts)
+
 
 _COMPRESSION_ACCESSION: dict[str, str] = {
     "zlib compression": CV_ZLIB_COMPRESSION,
@@ -202,9 +254,9 @@ def cv_list() -> bytes:
     return textwrap.dedent("""\
       <cvList count="2">
         <cv id="PSI-MS" fullName="Proteomics Standards Initiative Mass Spectrometry Ontology"
-            version="4.1.30" URI="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo"/>
+            version="4.2.15" URI="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo"/>
         <cv id="UO" fullName="Unit Ontology"
-            version="09:04:2014" URI="https://raw.githubusercontent.com/bio-ontology-research-group/unit-ontology/master/unit.obo"/>
+            version="2026-10-12" URI="http://purl.obolibrary.org/obo/uo.obo"/>
       </cvList>
     """).encode("utf-8")
 
@@ -460,6 +512,10 @@ def spectrum_element(
     ook0_window_lower: float | None = None,
     ook0_window_upper: float | None = None,
     polarity: str | None = None,
+    activation: str = "CID",
+    electron_energy: float | None = None,
+    reaction_time_ms: float | None = None,
+    precursor_group: int | None = None,
 ) -> bytes:
     """Render a complete ``<spectrum>`` XML element to bytes.
 
@@ -504,7 +560,9 @@ def spectrum_element(
     isolation_window_upper : float or None
         Isolation window upper offset (MS2 only).
     collision_energy : float or None
-        Collision energy in eV (MS2 only).
+        Collision energy in eV (MS2 only). For ``activation="ExD"`` or
+        ``"ETD"`` it is the energy of a CID step after the electron step
+        and is written as supplemental collision energy.
     one_over_k0 : float or None
         Mean inverse reduced ion mobility (1/K0) for the spectrum.
     ion_mobility_array : numpy.ndarray or None
@@ -519,6 +577,15 @@ def spectrum_element(
         or ``"negative scan"`` (CV MS:1000129).  When None, no polarity CV
         term is emitted (default for TDF/TIMS files where polarity is not
         stored per-frame).
+    activation : str, optional
+        Activation method: ``"CID"`` (default), ``"ETD"`` or ``"ExD"``.
+    electron_energy : float or None, optional
+        Electron beam energy in eV (``"ExD"`` only).
+    reaction_time_ms : float or None, optional
+        Reaction time in ms (``"ETD"`` and ``"ExD"`` only).
+    precursor_group : int or None, optional
+        Guided-PASEF precursor group; written as a ``precursor group``
+        userParam so the CID and ExD spectra of a group can be matched.
 
     Returns
     -------
@@ -549,6 +616,8 @@ def spectrum_element(
         f"        {_cv(CV_BASE_PEAK_MZ, 'base peak m/z', f'{base_peak_mz:.6f}', unit_accession=UNIT_MZ, unit_name='m/z')}",
         f"        {_cv(CV_BASE_PEAK_INTENSITY, 'base peak intensity', f'{base_peak_intensity:.6g}', unit_accession=UNIT_COUNTS, unit_name='number of detector counts')}",
     ]
+    if precursor_group is not None:
+        lines.append(f'        <userParam name="precursor group" value="{precursor_group}"/>')
 
     # Scan list
     im_scan_cv = ""
@@ -591,6 +660,13 @@ def spectrum_element(
         ce_cv = ""
         if collision_energy is not None:
             ce_cv = f"\n            {_cv(CV_COLLISION_ENERGY, 'collision energy', str(collision_energy), unit_accession=UNIT_ELECTRONVOLT, unit_name='electronvolt', unit_cvref='UO')}"
+        activation_cvs = (
+            f"              {_cv(CV_CID, 'collision-induced dissociation')}" + ce_cv
+            if activation == "CID"
+            else _electron_activation(
+                activation, collision_energy, electron_energy, reaction_time_ms
+            )
+        )
         lines += [
             '        <precursorList count="1">',
             f"          <precursor{ref_attr}>",
@@ -624,7 +700,7 @@ def spectrum_element(
             "              </selectedIon>",
             "            </selectedIonList>",
             "            <activation>",
-            f"              {_cv(CV_CID, 'collision-induced dissociation')}" + ce_cv,
+            activation_cvs,
             "            </activation>",
             "          </precursor>",
             "        </precursorList>",

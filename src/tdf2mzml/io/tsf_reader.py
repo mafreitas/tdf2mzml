@@ -36,7 +36,7 @@ from tdf2mzml.constants import (
     META_SCHEMA_VERSION_MAJOR,
     META_SCHEMA_VERSION_MINOR,
 )
-from tdf2mzml.io._sql import batched_in_query
+from tdf2mzml.io._sql import batched_in_query, table_exists
 from tdf2mzml.io.timsdata import TsfData
 from tdf2mzml.models.metadata import AcquisitionMetadata
 
@@ -45,6 +45,27 @@ logger = logging.getLogger(__name__)
 # TSF MsMsType values
 TSF_MSMS_TYPE_MS1: int = 0
 TSF_MSMS_TYPE_AUTO_MSMS: int = 2
+
+# Schema v5: the FrameMsMsInfo view drops ExD frames (it joins FragmentationCid), so the
+# Fragmentation* tables are read directly. The CID step that follows an ExD step (ECcID) is
+# linked through FragmentationStepToStep. The values are not tested on real TSF v5 data.
+_FRAGMENTATION_INFO_SQL = (
+    "SELECT fte.Frame, fp.Parent, iw.IsolationMz, iw.IsolationWidth, fp.Charge, "
+    "COALESCE(cid.CollisionEnergy, linked_cid.CollisionEnergy), "
+    "COALESCE(exd.ReactionTime, etd.ReactionTime), exd.ElectronEnergy "
+    "FROM FragmentationFrameToExperiment fte "
+    "JOIN FragmentationExperiment e ON e.GroupId = fte.GroupId "
+    "JOIN FragmentationStep s ON s.Id = e.FragmentationStep "
+    "JOIN FragmentationIsolationWindow iw ON iw.Id = s.IsolationWindow "
+    "LEFT JOIN FragmentationPrecursor fp ON fp.Id = s.Precursor "
+    "LEFT JOIN FragmentationCid cid ON cid.FragmentationStepId = s.Id "
+    "LEFT JOIN FragmentationExd exd ON exd.FragmentationStepId = s.Id "
+    "LEFT JOIN FragmentationEtd etd ON etd.FragmentationStepId = s.Id "
+    "LEFT JOIN FragmentationStepToStep link ON link.FragmentationStepOriginId = s.Id "
+    "LEFT JOIN FragmentationCid linked_cid ON linked_cid.FragmentationStepId = "
+    "link.FragmentationStepId "
+    "WHERE fte.Frame IN ({placeholders}) ORDER BY s.Id"
+)
 
 
 class TsfReader:
@@ -233,8 +254,26 @@ class TsfReader:
         -------
         dict
             Mapping frame_id → info dict (same structure as
-            :meth:`get_ms2_info_for_frame`).
+            :meth:`get_ms2_info_for_frame`). Schema v5 adds ``ReactionTime`` and
+            ``ElectronEnergy``, and ``CollisionEnergy`` is ``None`` for an ExD-only frame.
         """
+        if table_exists(self._tsf.conn, "FragmentationStep"):
+            info: dict[int, dict[str, Any]] = {}
+            for r in batched_in_query(self._tsf.conn, _FRAGMENTATION_INFO_SQL, frame_ids):
+                info.setdefault(
+                    int(r[0]),
+                    {
+                        "Frame": int(r[0]),
+                        "Parent": int(r[1]) if r[1] is not None else 0,
+                        "TriggerMass": float(r[2]) if r[2] is not None else 0.0,
+                        "IsolationWidth": float(r[3]) if r[3] is not None else 0.0,
+                        "PrecursorCharge": int(r[4]) if r[4] is not None else None,
+                        "CollisionEnergy": float(r[5]) if r[5] is not None else None,
+                        "ReactionTime": float(r[6]) if r[6] is not None else None,
+                        "ElectronEnergy": float(r[7]) if r[7] is not None else None,
+                    },
+                )
+            return info
         rows = batched_in_query(
             self._tsf.conn,
             "SELECT Frame, Parent, TriggerMass, IsolationWidth, "

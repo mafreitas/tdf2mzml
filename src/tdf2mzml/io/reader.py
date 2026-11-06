@@ -42,12 +42,44 @@ from tdf2mzml.constants import (
     MSMS_TYPE_PASEF_DIA,
     PRECURSOR_COLUMNS,
 )
-from tdf2mzml.io._sql import batched_in_query
+from tdf2mzml.io._sql import batched_in_query, table_exists
 from tdf2mzml.io.timsdata import PressureCompensationStrategy, TimsData
 from tdf2mzml.models.metadata import AcquisitionMetadata, DiaWindow
 from tdf2mzml.models.spectrum import PrecursorRow
 
 logger = logging.getLogger(__name__)
+
+# First TDF schema major version with the Fragmentation* tables. Older
+# PasefFrameMsMsInfo tables are views there and drop ExD-only frames.
+_FRAGMENTATION_SCHEMA_MAJOR = 5
+
+# Columns read by position (callers use f[0], f[1], f[4], f[8]), so they are named here
+# instead of using SELECT *: the SDK guide says the column order of a table can change.
+_FRAME_COLUMNS = (
+    "Id, Time, Polarity, ScanMode, MsMsType, TimsId, MaxIntensity, SummedIntensities, NumScans"
+)
+_DIA_WINDOW_COLUMNS = (
+    "WindowGroup, ScanNumBegin, ScanNumEnd, IsolationMz, IsolationWidth, CollisionEnergy"
+)
+
+# Isolation window plus activation settings for each precursor. The ExD or CID step
+# that holds the precursor may be followed by a linked CID step (ECcID).
+# {group} is the PrecursorGroup lookup (schema 5.1) or NULL; it is filled in before
+# the query is chunked, so only {placeholders} remains for batched_in_query().
+_FRAGMENTATION_INFO_SQL = (
+    "SELECT s.Precursor, iw.IsolationMz, iw.IsolationWidth, "
+    "COALESCE(cid.CollisionEnergy, linked_cid.CollisionEnergy), "
+    "COALESCE(exd.ReactionTime, etd.ReactionTime), exd.ElectronEnergy, {group} "
+    "FROM FragmentationStep s "
+    "JOIN FragmentationIsolationWindow iw ON iw.Id = s.IsolationWindow "
+    "LEFT JOIN FragmentationCid cid ON cid.FragmentationStepId = s.Id "
+    "LEFT JOIN FragmentationExd exd ON exd.FragmentationStepId = s.Id "
+    "LEFT JOIN FragmentationEtd etd ON etd.FragmentationStepId = s.Id "
+    "LEFT JOIN FragmentationStepToStep link ON link.FragmentationStepOriginId = s.Id "
+    "LEFT JOIN FragmentationCid linked_cid ON linked_cid.FragmentationStepId = "
+    "link.FragmentationStepId "
+    "WHERE s.Precursor IN ({placeholders}) ORDER BY s.Id"
+)
 
 
 class TdfReader:
@@ -144,8 +176,10 @@ class TdfReader:
         dda_frame_count: int = conn.execute(
             f"SELECT COUNT(*) FROM Frames WHERE MsMsType={MSMS_TYPE_PASEF_DDA}"
         ).fetchone()[0]
+        schema_major = int(_get(META_SCHEMA_VERSION_MAJOR, "0"))
         dda_precursor_count: int = 0
-        if dda_frame_count > 0:
+        # Schema v5 ExD frames are MsMsType=3, so also probe the Precursors view.
+        if dda_frame_count > 0 or schema_major >= _FRAGMENTATION_SCHEMA_MAJOR:
             dda_precursor_count = conn.execute("SELECT COUNT(*) FROM Precursors").fetchone()[0]
 
         dia_count: int = conn.execute(
@@ -157,7 +191,9 @@ class TdfReader:
         # DIA windows
         dia_windows: list[DiaWindow] = []
         if dia_count > 0:
-            for row in conn.execute("SELECT * FROM DiaFrameMsMsWindows").fetchall():
+            for row in conn.execute(
+                f"SELECT {_DIA_WINDOW_COLUMNS} FROM DiaFrameMsMsWindows"
+            ).fetchall():
                 dia_windows.append(
                     DiaWindow(
                         window_group=int(row[0]),
@@ -171,7 +207,7 @@ class TdfReader:
 
         return AcquisitionMetadata(
             schema_type=_get(META_SCHEMA_TYPE),
-            schema_version_major=int(_get(META_SCHEMA_VERSION_MAJOR, "0")),
+            schema_version_major=schema_major,
             schema_version_minor=int(_get(META_SCHEMA_VERSION_MINOR, "0")),
             acq_software=_get(META_ACQ_SOFTWARE),
             acq_software_version=_get(META_ACQ_SOFTWARE_VERSION),
@@ -199,7 +235,7 @@ class TdfReader:
             ms2_dda_count=dda_precursor_count,
             ms2_dia_count=dia_count,
             total_spectra=total,
-            has_pasef_dda=dda_frame_count > 0,
+            has_pasef_dda=dda_frame_count > 0 or dda_precursor_count > 0,
             has_pasef_dia=dia_count > 0,
             dia_windows=dia_windows,
         )
@@ -214,10 +250,10 @@ class TdfReader:
         Returns
         -------
         list of tuple
-            All columns from the ``Frames`` table for MS1 frames.
+            The :data:`_FRAME_COLUMNS` of the ``Frames`` table for MS1 frames.
         """
         return self._tims.conn.execute(
-            f"SELECT * FROM Frames WHERE MsMsType={MSMS_TYPE_MS1}"
+            f"SELECT {_FRAME_COLUMNS} FROM Frames WHERE MsMsType={MSMS_TYPE_MS1}"
         ).fetchall()
 
     def get_all_frames(self) -> list[tuple[int, ...]]:
@@ -226,9 +262,33 @@ class TdfReader:
         Returns
         -------
         list of tuple
-            All columns from the ``Frames`` table.
+            The :data:`_FRAME_COLUMNS` of the ``Frames`` table, in that order.
         """
-        return self._tims.conn.execute("SELECT * FROM Frames ORDER BY Id").fetchall()
+        return self._tims.conn.execute(
+            f"SELECT {_FRAME_COLUMNS} FROM Frames ORDER BY Id"
+        ).fetchall()
+
+    def count_precursors_in_range(self, frame_start: int, frame_end: int) -> int:
+        """Count the precursors whose parent MS1 frame is in [frame_start, frame_end].
+
+        Parameters
+        ----------
+        frame_start : int
+            First frame ID (inclusive).
+        frame_end : int
+            Last frame ID (inclusive).
+
+        Returns
+        -------
+        int
+            Number of rows in ``Precursors`` for that parent frame range.
+        """
+        return int(
+            self._tims.conn.execute(
+                "SELECT COUNT(*) FROM Precursors WHERE Parent BETWEEN ? AND ?",
+                (frame_start, frame_end),
+            ).fetchone()[0]
+        )
 
     def get_num_scans(self, frame_id: int) -> int:
         """Return the number of scan lines (mobility bins) in a frame.
@@ -309,7 +369,7 @@ class TdfReader:
             result.setdefault(int(row[parent_idx]), []).append(rec)
         return result
 
-    def get_pasef_frame_info(self, precursor_id: int) -> dict[str, object]:
+    def get_pasef_frame_info(self, precursor_id: int) -> dict[str, float | None]:
         """Return PASEF frame isolation and collision energy info for a precursor.
 
         Parameters
@@ -322,6 +382,8 @@ class TdfReader:
         dict
             Keys: ``IsolationMz``, ``CollisionEnergy``, ``IsolationWidth``.
         """
+        if self._has_fragmentation_tables():
+            return self._get_fragmentation_info_batch([precursor_id])[precursor_id]
         row = self._tims.conn.execute(
             "SELECT IsolationMz, CollisionEnergy, IsolationWidth "
             "FROM PasefFrameMsMsInfo WHERE Precursor=?",
@@ -333,8 +395,14 @@ class TdfReader:
             "IsolationWidth": row[2],
         }
 
-    def get_pasef_frame_info_batch(self, precursor_ids: list[int]) -> dict[int, dict[str, float]]:
-        """Return PASEF isolation/CE info for multiple precursors in one query.
+    def get_pasef_frame_info_batch(
+        self, precursor_ids: list[int]
+    ) -> dict[int, dict[str, float | None]]:
+        """Return PASEF isolation/activation info for multiple precursors in one query.
+
+        For schema v5 and later the ``Fragmentation*`` tables are read directly,
+        so ExD precursors (which have no CID row) are included. Older schemas
+        read the ``PasefFrameMsMsInfo`` table as before.
 
         Parameters
         ----------
@@ -345,7 +413,11 @@ class TdfReader:
         -------
         dict
             Mapping precursor_id → {IsolationMz, CollisionEnergy, IsolationWidth}.
+            Schema v5 adds ``ReactionTime`` and ``ElectronEnergy``; a value is
+            ``None`` when the precursor has no such activation step.
         """
+        if self._has_fragmentation_tables():
+            return self._get_fragmentation_info_batch(precursor_ids)
         rows = batched_in_query(
             self._tims.conn,
             "SELECT Precursor, IsolationMz, CollisionEnergy, IsolationWidth "
@@ -360,6 +432,64 @@ class TdfReader:
             }
             for r in rows
         }
+
+    def _has_fragmentation_tables(self) -> bool:
+        """Return True for schema v5 data, which has the ``Fragmentation*`` tables.
+
+        Checked by name only: the old MS/MS tables are views in schema v5.
+        """
+        return table_exists(self._tims.conn, "FragmentationStep")
+
+    def _get_fragmentation_info_batch(
+        self, precursor_ids: list[int]
+    ) -> dict[int, dict[str, float | None]]:
+        """Read isolation and activation settings from the schema v5 tables.
+
+        Each frame of a precursor has its own fragmentation step, so the first
+        step (lowest ID) of a precursor is used. Schema 5.1 adds
+        ``FragmentationPrecursor.PrecursorGroup``, which links the CID and ExD
+        precursors of a guided-PASEF method; older files give ``None``.
+        """
+        keys = (
+            "IsolationMz",
+            "IsolationWidth",
+            "CollisionEnergy",
+            "ReactionTime",
+            "ElectronEnergy",
+            "PrecursorGroup",
+        )
+        conn = self._tims.conn
+        has_group = any(
+            r[1] == "PrecursorGroup"
+            for r in conn.execute("PRAGMA table_info(FragmentationPrecursor)")
+        )
+        group = (
+            "(SELECT PrecursorGroup FROM FragmentationPrecursor WHERE Id = s.Precursor)"
+            if has_group
+            else "NULL"
+        )
+        sql = _FRAGMENTATION_INFO_SQL.replace("{group}", group)
+        info: dict[int, dict[str, float | None]] = {}
+        kinds: dict[int, tuple[object, ...]] = {}
+        mixed: set[int] = set()
+        for row in batched_in_query(conn, sql, precursor_ids):
+            pid = int(row[0])
+            kind = tuple(row[3:6])
+            if pid not in info:
+                values = zip(keys, row[1:], strict=True)
+                info[pid] = {k: None if v is None else float(v) for k, v in values}
+                kinds[pid] = kind
+            elif kinds[pid] != kind:
+                mixed.add(pid)
+        if mixed:
+            # shortcut: one merged spectrum per precursor, labelled with its first activation;
+            # split by activation when guided-PASEF sample data is available.
+            logger.warning(
+                "%d precursors have frames with different activation settings; "
+                "writing one merged spectrum for each",
+                len(mixed),
+            )
+        return info
 
     def get_parent_frame_ids(self, precursor_id: int) -> list[int]:
         """Return all MS2 frame IDs that contain a given precursor.
@@ -384,24 +514,21 @@ class TdfReader:
     # DIA queries
     # ------------------------------------------------------------------
 
-    def get_dia_window_group(self, frame_id: int) -> int:
-        """Return the DIA window group ID for a DIA frame.
-
-        Parameters
-        ----------
-        frame_id : int
-            A MsMsType=9 frame ID.
+    def get_dia_windows_by_frame(self) -> dict[int, list[tuple[int, ...]]]:
+        """Return the DIA windows of every DIA frame, reading each window group once.
 
         Returns
         -------
-        int
-            Window group identifier.
+        dict
+            Mapping DIA frame ID → list of window rows
+            ``(WindowGroup, ScanNumBegin, ScanNumEnd, IsolationMz, IsolationWidth,
+            CollisionEnergy)``, in the same order as :meth:`get_dia_windows_for_group`.
         """
-        row = self._tims.conn.execute(
-            "SELECT WindowGroup FROM DiaFrameMsMsInfo WHERE Frame=?",
-            (frame_id,),
-        ).fetchone()
-        return int(row[0])
+        frame_groups = self._tims.conn.execute(
+            "SELECT Frame, WindowGroup FROM DiaFrameMsMsInfo"
+        ).fetchall()
+        by_group = {g: self.get_dia_windows_for_group(g) for g in {g for _, g in frame_groups}}
+        return {int(frame): by_group[group] for frame, group in frame_groups}
 
     def get_dia_windows_for_group(self, window_group: int) -> list[tuple[int, ...]]:
         """Return all DIA window definitions for a window group.
@@ -414,10 +541,11 @@ class TdfReader:
         Returns
         -------
         list of tuple
-            All columns from ``DiaFrameMsMsWindows`` for this group.
+            ``(WindowGroup, ScanNumBegin, ScanNumEnd, IsolationMz, IsolationWidth,
+            CollisionEnergy)`` rows of ``DiaFrameMsMsWindows`` for this group.
         """
         return self._tims.conn.execute(
-            "SELECT * FROM DiaFrameMsMsWindows WHERE WindowGroup=?",
+            f"SELECT {_DIA_WINDOW_COLUMNS} FROM DiaFrameMsMsWindows WHERE WindowGroup=?",
             (window_group,),
         ).fetchall()
 

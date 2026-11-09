@@ -253,11 +253,16 @@ _dll.tsf_close.restype = None
 _dll.tsf_get_last_error_string.argtypes = [c_char_p, c_uint32]
 _dll.tsf_get_last_error_string.restype = c_uint32
 
-# TSF spectrum reading
-_dll.tsf_read_line_spectrum_v2.argtypes = [c_uint64, c_int64, _MSMS_FUNCTOR, c_void_p]
-_dll.tsf_read_line_spectrum_v2.restype = c_uint32
-_dll.tsf_read_profile_spectrum_v2.argtypes = [c_uint64, c_int64, _MSMS_PROFILE_FUNCTOR, c_void_p]
-_dll.tsf_read_profile_spectrum_v2.restype = c_uint32
+# TSF spectrum reading: the SDK fills caller-owned buffers and returns the needed length (-1 on
+# error). The index values are converted to m/z with tsf_index_to_mz.
+_dll.tsf_read_line_spectrum_v2.argtypes = [
+    c_uint64,
+    c_int64,
+    POINTER(c_double),
+    POINTER(c_float),
+    c_int32,
+]
+_dll.tsf_read_line_spectrum_v2.restype = c_int32
 
 # TSF coordinate conversion
 _TSF_CONV_ARGS = [c_uint64, c_int64, POINTER(c_double), POINTER(c_double), c_uint32]
@@ -1015,7 +1020,7 @@ class TsfData:
 
     TSF files are produced by the timsTOF fleX instrument operating in
     TIMS-off mode.  There is no ion mobility data; spectra are read via
-    ``tsf_read_line_spectrum_v2`` which returns m/z values directly.
+    ``tsf_read_line_spectrum_v2`` (index values) and ``tsf_index_to_mz``.
 
     Parameters
     ----------
@@ -1054,6 +1059,7 @@ class TsfData:
         self.conn: sqlite3.Connection = sqlite3.connect(
             os.path.join(analysis_directory, "analysis.tsf")
         )
+        self._line_buffer_size: int = 1024  # grows when a frame needs more
 
     def close(self) -> None:
         """Close the SDK handle and SQLite connection."""
@@ -1088,8 +1094,10 @@ class TsfData:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float32]]:
         """Read a centroid line spectrum for a TSF frame.
 
-        Calls ``tsf_read_line_spectrum_v2`` which returns m/z values
-        directly (no index-to-mz conversion needed).
+        ``tsf_read_line_spectrum_v2`` fills the buffers with index values and
+        intensities and returns the length it needs. The index values are
+        converted to m/z with ``tsf_index_to_mz``. A frame without peaks gives
+        empty arrays.
 
         Parameters
         ----------
@@ -1106,30 +1114,35 @@ class TsfData:
         RuntimeError
             If the SDK returns a failure code.
         """
-        result: tuple[npt.NDArray[np.float64], npt.NDArray[np.float32]] | None = None
-
-        @_MSMS_FUNCTOR
-        def _cb(
-            _fid: int,
-            n: int,
-            mz_ptr: POINTER(c_double),  # type: ignore[valid-type]
-            area_ptr: POINTER(c_float),  # type: ignore[valid-type]
-        ) -> None:
-            nonlocal result
-            result = (
-                np.array(mz_ptr[:n], dtype=np.float64),
-                np.array(area_ptr[:n], dtype=np.float32),
+        length = self._line_buffer_size
+        while True:
+            index_buf = np.empty(length, dtype=np.float64)
+            intensity_buf = np.empty(length, dtype=np.float32)
+            needed = self._dll.tsf_read_line_spectrum_v2(
+                self.handle,
+                frame_id,
+                index_buf.ctypes.data_as(POINTER(c_double)),
+                intensity_buf.ctypes.data_as(POINTER(c_float)),
+                length,
             )
+            if needed < 0:
+                self._raise_last_error()
+            if needed <= length:
+                break
+            # The buffer was too small and the result is incomplete: read again.
+            length = self._line_buffer_size = needed
 
-        ok = self._dll.tsf_read_line_spectrum_v2(self.handle, frame_id, _cb, None)
+        if needed == 0:
+            return np.empty(0, dtype=np.float64), np.empty(0, dtype=np.float32)
+
+        mz = np.empty(needed, dtype=np.float64)
+        ok = self._dll.tsf_index_to_mz(
+            self.handle,
+            frame_id,
+            index_buf.ctypes.data_as(POINTER(c_double)),
+            mz.ctypes.data_as(POINTER(c_double)),
+            needed,
+        )
         if ok == 0:
             self._raise_last_error()
-
-        return (
-            result
-            if result is not None
-            else (
-                np.empty(0, dtype=np.float64),
-                np.empty(0, dtype=np.float32),
-            )
-        )
+        return mz, intensity_buf[:needed].copy()

@@ -61,7 +61,7 @@ The main entry point (`main()`) builds an argument parser, constructs a `Convers
 
 **TdfReader** (`reader.py`): Opens a `.d` directory containing `analysis.tdf`. Wraps the Bruker TimsData SDK to provide methods for extracting centroided and profile spectra, reading frame metadata from the SQLite database, and converting scan indices to 1/K0 values.
 
-**TsfReader** (`tsf_reader.py`): Handles `.d` directories containing `analysis.tsf` (without `analysis.tdf`). Uses `tsf_read_line_spectrum_v2` from the SDK. No ion mobility dimension.
+**TsfReader** (`tsf_reader.py`): Handles `.d` directories containing `analysis.tsf` (without `analysis.tdf`). Uses `tsf_read_line_spectrum_v2` from the SDK (a buffer that grows until the frame fits) and `tsf_index_to_mz` to convert the index values to m/z. An empty frame gives an empty spectrum. No ion mobility dimension.
 
 **BafReader** (`baf_reader.py`): Handles `.d` directories containing `analysis.baf` or standalone `.baf` files. Uses `libbaf2sql_c` which generates a temporary SQLite cache from the binary BAF data. Reads the Spectra table joined with AcquisitionKeys for MS level and polarity.
 

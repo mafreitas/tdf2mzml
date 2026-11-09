@@ -8,6 +8,9 @@ from __future__ import annotations
 import argparse
 import logging
 import re
+import tempfile
+import zipfile
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -23,18 +26,24 @@ from tdf2mzml.constants import (
     DEFAULT_MS2_THRESHOLD,
     DEFAULT_PRECISION,
     DEFAULT_START_FRAME,
+    DEFAULT_TDF_MS2_THRESHOLD,
     MSMS_TYPE_MS1,
     MSMS_TYPE_PASEF_DIA,
 )
 from tdf2mzml.io.baf_reader import BAF_MS_LEVEL_MS1, BAF_POLARITY_POSITIVE, BafReader
 from tdf2mzml.io.reader import TdfReader
-from tdf2mzml.io.tsf_reader import TSF_MSMS_TYPE_AUTO_MSMS, TSF_MSMS_TYPE_MS1, TsfReader
+from tdf2mzml.io.tsf_reader import TSF_MSMS_TYPE_MS1, TSF_MSMS_TYPES_MS2, TsfReader
 from tdf2mzml.models.config import ConversionConfig
 from tdf2mzml.models.spectrum import PrecursorInfo, SpectrumArrays
 from tdf2mzml.output.writer import IndexedMzMLWriter
 from tdf2mzml.processing.mobility import mean_ook0_for_frame
 from tdf2mzml.processing.ms1 import get_im_resolved_ms1, get_ms1_spectrum
-from tdf2mzml.processing.ms2 import get_pasef_dda_ms2, get_pasef_dia_ms2
+from tdf2mzml.processing.ms2 import (
+    activation_from_info,
+    filter_peaks,
+    get_pasef_dda_ms2,
+    get_pasef_dia_ms2,
+)
 from tdf2mzml.utils import ProgressLogger, timing
 
 logger = logging.getLogger(__name__)
@@ -88,9 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ms2_threshold",
         type=float,
-        default=DEFAULT_MS2_THRESHOLD,
+        default=None,
         metavar="VALUE",
-        help=f"Min intensity for MS2 (default: {DEFAULT_MS2_THRESHOLD})",
+        help=(
+            f"Min intensity for MS2 (default: {DEFAULT_TDF_MS2_THRESHOLD:g} for TDF, "
+            f"{DEFAULT_MS2_THRESHOLD:g} for TSF and BAF)"
+        ),
     )
     parser.add_argument(
         "--ms2_nlargest",
@@ -157,22 +169,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _derive_output(input_path: str) -> str:
-    """Derive the default output path from the input .d directory path.
+    """Derive the default output path from the input path.
 
     Parameters
     ----------
     input_path : str
-        Path to the ``.d`` input directory.
+        Path to the ``.d`` input directory, a ``.d.zip`` / ``.zip`` archive or a ``.baf`` file.
 
     Returns
     -------
     str
-        Output path with ``.d`` suffix replaced by ``.mzML``.
+        Output path with the ``.d``, ``.d.zip``, ``.zip`` or ``.baf`` suffix replaced by
+        ``.mzML``; ``.mzML`` is appended when there is no such suffix.
     """
-    # Strip .baf extension for standalone BAF files
-    if input_path.lower().endswith(".baf"):
-        return re.sub(r"\.baf$", ".mzML", input_path, flags=re.IGNORECASE)
-    return re.sub(r"\.d[/\\]?$", ".mzML", input_path.rstrip("/\\"))
+    path = input_path.rstrip("/\\")
+    derived = re.sub(r"(\.d(\.zip)?|\.zip|\.baf)$", ".mzML", path, flags=re.IGNORECASE)
+    return derived if derived != path else f"{path}.mzML"
 
 
 def parse_args(argv: list[str] | None = None) -> ConversionConfig:
@@ -215,12 +227,18 @@ def parse_args(argv: list[str] | None = None) -> ConversionConfig:
 # ---------------------------------------------------------------------------
 
 
+def _ms2_threshold(config: ConversionConfig, default: float) -> float:
+    """Return the MS2 intensity threshold of *config*, or *default* when it was not set."""
+    return default if config.ms2_threshold is None else config.ms2_threshold
+
+
 def _count_spectra_in_range(
     reader: TdfReader,
     all_frames: list[tuple[int, ...]],
     start_frame: int,
     end_frame: int,
     meta: object,
+    dia_windows: Mapping[int, list[tuple[int, ...]]],
 ) -> int:
     """Count spectra that will be written for the given frame range.
 
@@ -238,6 +256,8 @@ def _count_spectra_in_range(
         Last frame ID (inclusive).
     meta : AcquisitionMetadata
         Acquisition metadata.
+    dia_windows : mapping
+        DIA windows of each DIA frame, from ``TdfReader.get_dia_windows_by_frame``.
 
     Returns
     -------
@@ -257,23 +277,15 @@ def _count_spectra_in_range(
 
     dda_count = 0
     if meta.has_pasef_dda:
-        # Single query: count precursors whose parent frame is in range
-        dda_count = reader._tims.conn.execute(
-            "SELECT COUNT(*) FROM Precursors WHERE Parent BETWEEN ? AND ?",
-            (start_frame, end_frame),
-        ).fetchone()[0]
+        dda_count = reader.count_precursors_in_range(start_frame, end_frame)
 
     dia_count = 0
     if meta.has_pasef_dia:
-        # For DIA we need windows per frame — batch via subquery
-        dia_frame_ids = [
-            int(f[0])
+        dia_count = sum(
+            len(dia_windows.get(int(f[0]), ()))
             for f in all_frames
             if start_frame <= int(f[0]) <= end_frame and int(f[4]) == MSMS_TYPE_PASEF_DIA
-        ]
-        for fid in dia_frame_ids:
-            window_group = reader.get_dia_window_group(fid)
-            dia_count += len(reader.get_dia_windows_for_group(window_group))
+        )
 
     return ms1_count + dda_count + dia_count
 
@@ -327,23 +339,27 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
         start_frame = config.start_frame if config.start_frame != -1 else 1
         end_frame = config.end_frame if config.end_frame != -1 else meta.frame_count
 
-        # Count spectra that will be written
+        # Pre-load MS2 info for all MS2 frames in range
+        ms2_frame_ids = [
+            int(f[0])
+            for f in all_frames
+            if start_frame <= int(f[0]) <= end_frame and int(f[4]) in TSF_MSMS_TYPES_MS2
+        ]
+        ms2_info_cache = reader.get_ms2_info_batch(ms2_frame_ids)
+
+        # Count the spectra that will be written. An MS2 frame without MS2 info is skipped
+        # below, so it must not be counted in the header.
         actual_spectra = sum(
             1
             for f in all_frames
             if start_frame <= int(f[0]) <= end_frame
-            and int(f[4]) in (TSF_MSMS_TYPE_MS1, TSF_MSMS_TYPE_AUTO_MSMS)
+            and (
+                int(f[4]) == TSF_MSMS_TYPE_MS1
+                or (int(f[4]) in TSF_MSMS_TYPES_MS2 and int(f[0]) in ms2_info_cache)
+            )
         )
 
         progress = ProgressLogger(total=actual_spectra)
-
-        # Pre-load FrameMsMsInfo for all MS2 frames in range
-        ms2_frame_ids = [
-            int(f[0])
-            for f in all_frames
-            if start_frame <= int(f[0]) <= end_frame and int(f[4]) == TSF_MSMS_TYPE_AUTO_MSMS
-        ]
-        ms2_info_cache = reader.get_ms2_info_batch(ms2_frame_ids)
 
         # Build a map of MS1 frame_id → last written MS1 spectrum_id so that
         # MS2 frames can reference their parent MS1 by spectrum ID.
@@ -381,14 +397,8 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                         raw_i = np.empty(0, dtype=np.float32)
 
                     # Apply MS1 threshold
-                    if config.ms1_threshold > 0 and len(raw_i) > 0:
-                        mask = raw_i >= config.ms1_threshold
-                        raw_mz = raw_mz[mask]
-                        raw_i = raw_i[mask]
-
-                    arrays = SpectrumArrays(
-                        mz=raw_mz,
-                        intensity=raw_i,
+                    arrays = filter_peaks(
+                        SpectrumArrays(mz=raw_mz, intensity=raw_i), config.ms1_threshold, -1
                     )
 
                     last_ms1_spectrum_id = writer.write_ms1_spectrum(
@@ -401,10 +411,10 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                     ms1_spectrum_id_by_frame[frame_id] = last_ms1_spectrum_id
                     progress.update(ms_level=1)
 
-                elif msms_type == TSF_MSMS_TYPE_AUTO_MSMS:
+                elif msms_type in TSF_MSMS_TYPES_MS2:
                     info = ms2_info_cache.get(frame_id)
                     if info is None:
-                        logger.warning("Frame %d: no FrameMsMsInfo entry, skipping", frame_id)
+                        logger.warning("Frame %d: no MS2 info, skipping", frame_id)
                         continue
 
                     # Resolve parent MS1 spectrum ID
@@ -421,24 +431,11 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                         raw_mz = np.empty(0, dtype=np.float64)
                         raw_i = np.empty(0, dtype=np.float32)
 
-                    # Apply MS2 threshold
-                    if config.ms2_threshold > 0 and len(raw_i) > 0:
-                        mask = raw_i >= config.ms2_threshold
-                        raw_mz = raw_mz[mask]
-                        raw_i = raw_i[mask]
-
-                    # Apply n-largest filter
-                    if config.ms2_nlargest > 0 and len(raw_i) > config.ms2_nlargest:
-                        top_idx = np.argpartition(raw_i, -config.ms2_nlargest)[
-                            -config.ms2_nlargest :
-                        ]
-                        top_idx = top_idx[np.argsort(raw_mz[top_idx])]
-                        raw_mz = raw_mz[top_idx]
-                        raw_i = raw_i[top_idx]
-
-                    arrays = SpectrumArrays(
-                        mz=raw_mz,
-                        intensity=raw_i,
+                    # Apply MS2 threshold and n-largest filter
+                    arrays = filter_peaks(
+                        SpectrumArrays(mz=raw_mz, intensity=raw_i),
+                        _ms2_threshold(config, DEFAULT_MS2_THRESHOLD),
+                        config.ms2_nlargest,
                     )
 
                     trigger_mz = info["TriggerMass"]
@@ -446,6 +443,7 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                     half_width = isolation_width / 2.0
                     charge = info["PrecursorCharge"]
 
+                    activation, electron_energy, reaction_time = activation_from_info(info)
                     precursor_info = PrecursorInfo(
                         mz=trigger_mz,
                         charge=int(charge) if charge is not None else None,
@@ -455,7 +453,9 @@ def run_tsf_conversion(config: ConversionConfig) -> None:
                         isolation_window_upper=half_width,
                         one_over_k0=None,
                         collision_energy=info["CollisionEnergy"],
-                        activation="CID",
+                        activation=activation,
+                        electron_energy=electron_energy,
+                        reaction_time_ms=reaction_time,
                     )
 
                     writer.write_ms2_spectrum(
@@ -566,12 +566,9 @@ def run_baf_conversion(config: ConversionConfig) -> None:
 
                 # --- MS1 ---
                 if ms_level == BAF_MS_LEVEL_MS1:
-                    if config.ms1_threshold > 0 and len(raw_i) > 0:
-                        mask = raw_i >= config.ms1_threshold
-                        raw_mz = raw_mz[mask]
-                        raw_i = raw_i[mask]
-
-                    arrays = SpectrumArrays(mz=raw_mz, intensity=raw_i)
+                    arrays = filter_peaks(
+                        SpectrumArrays(mz=raw_mz, intensity=raw_i), config.ms1_threshold, -1
+                    )
                     last_ms1_spectrum_id = writer.write_ms1_spectrum(
                         arrays=arrays,
                         scan_start_time=scan_start_time,
@@ -582,39 +579,35 @@ def run_baf_conversion(config: ConversionConfig) -> None:
 
                 # --- MS2 ---
                 else:
-                    if config.ms2_threshold > 0 and len(raw_i) > 0:
-                        mask = raw_i >= config.ms2_threshold
-                        raw_mz = raw_mz[mask]
-                        raw_i = raw_i[mask]
-
-                    if config.ms2_nlargest > 0 and len(raw_i) > config.ms2_nlargest:
-                        top_idx = np.argpartition(raw_i, -config.ms2_nlargest)[
-                            -config.ms2_nlargest :
-                        ]
-                        top_idx = top_idx[np.argsort(raw_mz[top_idx])]
-                        raw_mz = raw_mz[top_idx]
-                        raw_i = raw_i[top_idx]
-
-                    arrays = SpectrumArrays(mz=raw_mz, intensity=raw_i)
+                    arrays = filter_peaks(
+                        SpectrumArrays(mz=raw_mz, intensity=raw_i),
+                        _ms2_threshold(config, DEFAULT_MS2_THRESHOLD),
+                        config.ms2_nlargest,
+                    )
 
                     info = ms2_info_cache.get(spec_id, {})
-                    precursor_mz = info.get("mass", 0.0)
+                    precursor_mz = info.get("mass")
                     ce = info.get("collision_energy")
                     iso_w = info.get("isolation_width")
                     half_w = float(iso_w) / 2.0 if iso_w is not None else None
 
-                    _mz = float(precursor_mz) if precursor_mz is not None else 0.0
-                    precursor_info = PrecursorInfo(
-                        mz=_mz,
-                        charge=None,
-                        spectrum_reference=last_ms1_spectrum_id,
-                        isolation_window_target=_mz,
-                        isolation_window_lower=half_w,
-                        isolation_window_upper=half_w,
-                        one_over_k0=None,
-                        collision_energy=float(ce) if ce is not None else None,
-                        activation="CID",
-                    )
+                    precursor_info: PrecursorInfo | None = None
+                    if precursor_mz is None:
+                        logger.warning(
+                            "Spectrum %d: no precursor data, written without one", spec_id
+                        )
+                    else:
+                        precursor_info = PrecursorInfo(
+                            mz=float(precursor_mz),
+                            charge=None,
+                            spectrum_reference=last_ms1_spectrum_id,
+                            isolation_window_target=float(precursor_mz),
+                            isolation_window_lower=half_w,
+                            isolation_window_upper=half_w,
+                            one_over_k0=None,
+                            collision_energy=float(ce) if ce is not None else None,
+                            activation="CID",
+                        )
                     writer.write_ms2_spectrum(
                         arrays=arrays,
                         scan_start_time=scan_start_time,
@@ -626,14 +619,41 @@ def run_baf_conversion(config: ConversionConfig) -> None:
     logger.info("Conversion complete: %s", config.output)
 
 
+def _extract_zip(config: ConversionConfig, dest: Path) -> ConversionConfig:
+    """Extract the ``.zip`` input into *dest* and return a config for the ``.d`` folder inside."""
+    with zipfile.ZipFile(config.input) as zf:
+        zf.extractall(dest)
+    d_dirs = sorted(dest.rglob("*.d"))
+    if not d_dirs:
+        raise ValueError(f"No .d directory found after extracting '{config.input}'")
+    return ConversionConfig.model_validate({**config.model_dump(), "input": d_dirs[0]})
+
+
 @timing
 def run_conversion(config: ConversionConfig) -> None:
-    """Execute a full TDF → indexed mzML conversion.
+    """Execute a full conversion; a ``.zip`` input is extracted to a temporary directory.
+
+    The temporary directory is removed when the conversion ends, also after an error.
 
     Parameters
     ----------
     config : ConversionConfig
         Validated conversion parameters.
+    """
+    if config.input.suffix == ".zip" and zipfile.is_zipfile(config.input):
+        with tempfile.TemporaryDirectory(prefix="tdf2mzml_") as tmp:
+            _convert(_extract_zip(config, Path(tmp)))
+        return
+    _convert(config)
+
+
+def _convert(config: ConversionConfig) -> None:
+    """Detect the input format and run the matching conversion.
+
+    Parameters
+    ----------
+    config : ConversionConfig
+        Validated conversion parameters; the input is a ``.d`` folder or ``.baf`` file.
     """
     # Detect input format by probing for the characteristic analysis file.
     # Priority: BAF first (standalone .baf or .d with analysis.baf),
@@ -668,7 +688,12 @@ def run_conversion(config: ConversionConfig) -> None:
         start_frame = config.start_frame if config.start_frame != -1 else 1
         end_frame = config.end_frame if config.end_frame != -1 else meta.frame_count
 
-        actual_spectra = _count_spectra_in_range(reader, all_frames, start_frame, end_frame, meta)
+        # DIA windows of every DIA frame, read once (not per frame, and not twice)
+        dia_windows = reader.get_dia_windows_by_frame() if meta.has_pasef_dia else {}
+
+        actual_spectra = _count_spectra_in_range(
+            reader, all_frames, start_frame, end_frame, meta, dia_windows
+        )
         progress = ProgressLogger(total=actual_spectra)
 
         with IndexedMzMLWriter(
@@ -687,6 +712,7 @@ def run_conversion(config: ConversionConfig) -> None:
                 start_frame=start_frame,
                 end_frame=end_frame,
                 progress=progress,
+                dia_windows=dia_windows,
             )
 
     logger.info("Conversion complete: %s", config.output)
@@ -700,6 +726,7 @@ def _write_spectra(
     start_frame: int,
     end_frame: int,
     progress: ProgressLogger,
+    dia_windows: Mapping[int, list[tuple[int, ...]]],
 ) -> None:
     """Inner loop: iterate frames and write spectra.
 
@@ -719,8 +746,11 @@ def _write_spectra(
         Last frame ID to process (inclusive).
     progress : ProgressLogger
         Progress reporter.
+    dia_windows : mapping
+        DIA windows of each DIA frame, from ``TdfReader.get_dia_windows_by_frame``.
     """
     last_ms1_spectrum_id: str = "index=0"
+    ms2_threshold = _ms2_threshold(config, DEFAULT_TDF_MS2_THRESHOLD)
 
     meta = reader.metadata
 
@@ -736,7 +766,7 @@ def _write_spectra(
     all_precursor_ids: list[int] = [
         int(p["Id"]) for precs in dda_precursors.values() for p in precs
     ]
-    pasef_info_cache: dict[int, dict[str, float]] = (
+    pasef_info_cache: dict[int, dict[str, float | None]] = (
         reader.get_pasef_frame_info_batch(all_precursor_ids) if all_precursor_ids else {}
     )
 
@@ -824,7 +854,7 @@ def _write_spectra(
                             one_over_k0=prec_ook0.get(int(precursor["Id"])),
                         )
                         writer.write_ms2_spectrum(
-                            arrays=ms2_arrays,
+                            arrays=filter_peaks(ms2_arrays, ms2_threshold, config.ms2_nlargest),
                             scan_start_time=scan_start_time,
                             precursor=precursor_info,
                         )
@@ -832,9 +862,7 @@ def _write_spectra(
 
         # ---- PASEF DIA MS2 frame ----
         elif msms_type == MSMS_TYPE_PASEF_DIA and meta.has_pasef_dia:
-            window_group = reader.get_dia_window_group(frame_id)
-            windows = reader.get_dia_windows_for_group(window_group)
-            for window in windows:
+            for window in dia_windows.get(frame_id, ()):
                 ms2_arrays, precursor_info = get_pasef_dia_ms2(
                     reader=reader,
                     frame_id=frame_id,
@@ -842,7 +870,7 @@ def _write_spectra(
                     parent_spectrum_id=last_ms1_spectrum_id,
                 )
                 writer.write_ms2_spectrum(
-                    arrays=ms2_arrays,
+                    arrays=filter_peaks(ms2_arrays, ms2_threshold, config.ms2_nlargest),
                     scan_start_time=scan_start_time,
                     precursor=precursor_info,
                 )

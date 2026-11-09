@@ -594,6 +594,127 @@ class TestPrecursorStructure:
         assert ce[0]["unitCvRef"] == "UO"
 
 
+class TestElectronActivation:
+    """ETD, ExD and ExD-then-CID (ECcID) activation blocks."""
+
+    @staticmethod
+    def _activation(**kwargs: object) -> str:
+        mz = np.array([150.0, 250.0], dtype=np.float64)
+        intensity = np.array([500.0, 1000.0], dtype=np.float32)
+        block = xe.spectrum_element(
+            spectrum_id="index=2",
+            index=1,
+            ms_level=2,
+            centroided=True,
+            scan_start_time=1.5,
+            mz_array=mz,
+            intensity_array=intensity,
+            scan_window_lower=50.0,
+            scan_window_upper=1700.0,
+            compression="none",
+            total_ion_current=1500.0,
+            base_peak_mz=250.0,
+            base_peak_intensity=1000.0,
+            precursor_mz=456.789,
+            precursor_spectrum_ref="index=1",
+            isolation_window_target=456.789,
+            **kwargs,  # type: ignore[arg-type]
+        )
+        etree.fromstring(block)  # must stay well-formed
+        return re.search(r"<activation>.*?</activation>", block.decode(), re.S).group()  # type: ignore[union-attr]
+
+    @staticmethod
+    def _names(activation_xml: str) -> list[str]:
+        return re.findall(r'<(?:cvParam|userParam) [^>]*?name="([^"]*)"', activation_xml)
+
+    def test_cid_is_default_and_unchanged(self) -> None:
+        xml = self._activation(collision_energy=30.0)
+        assert self._names(xml) == ["collision-induced dissociation", "collision energy"]
+
+    def test_exd_only(self) -> None:
+        xml = self._activation(activation="ExD", electron_energy=35.0, reaction_time_ms=30.0)
+        assert self._names(xml) == [
+            "electron activated dissociation",
+            "electron beam energy",
+            "reaction time",
+        ]
+        params = {p["name"]: p for p in _find_all_cvparams(xml.encode())}
+        assert params["electron activated dissociation"]["accession"] == "MS:1003294"
+        beam = params["electron beam energy"]
+        assert beam["accession"] == "MS:1003410"
+        assert beam["value"] == "35.0"
+        assert beam["unitAccession"] == "UO:0000266"
+        assert beam["unitCvRef"] == "UO"
+
+    def test_reaction_time_has_millisecond_unit(self) -> None:
+        xml = self._activation(activation="ExD", electron_energy=0.0, reaction_time_ms=30.0)
+        user = re.search(r"<userParam [^>]*/>", xml).group()  # type: ignore[union-attr]
+        attrs = dict(re.findall(r'(\w+)="([^"]*)"', user))
+        assert attrs["value"] == "30"
+        assert attrs["unitAccession"] == "UO:0000028"
+        assert attrs["unitName"] == "millisecond"
+        assert attrs["unitCvRef"] == "UO"
+
+    def test_exd_then_cid_adds_supplemental_terms(self) -> None:
+        xml = self._activation(
+            activation="ExD", electron_energy=35.0, reaction_time_ms=30.0, collision_energy=40.5
+        )
+        assert self._names(xml) == [
+            "electron activated dissociation",
+            "electron beam energy",
+            "reaction time",
+            "supplemental collision-induced dissociation",
+            "supplemental collision energy",
+        ]
+        params = {p["name"]: p for p in _find_all_cvparams(xml.encode())}
+        assert params["supplemental collision-induced dissociation"]["accession"] == "MS:1002679"
+        supp = params["supplemental collision energy"]
+        assert supp["accession"] == "MS:1002680"
+        assert supp["value"] == "40.5"
+        assert supp["unitAccession"] == "UO:0000266"
+        assert "collision-induced dissociation" not in self._names(xml)
+
+    def test_etd(self) -> None:
+        xml = self._activation(activation="ETD", reaction_time_ms=50.0)
+        assert self._names(xml) == ["electron transfer dissociation", "reaction time"]
+        params = {p["name"]: p for p in _find_all_cvparams(xml.encode())}
+        assert params["electron transfer dissociation"]["accession"] == "MS:1000598"
+
+
+class TestPrecursorGroup:
+    """Guided-PASEF precursor group userParam on the spectrum."""
+
+    @staticmethod
+    def _spectrum(**kwargs: object) -> bytes:
+        return xe.spectrum_element(
+            spectrum_id="index=2",
+            index=1,
+            ms_level=2,
+            centroided=True,
+            scan_start_time=1.5,
+            mz_array=np.array([150.0], dtype=np.float64),
+            intensity_array=np.array([500.0], dtype=np.float32),
+            scan_window_lower=50.0,
+            scan_window_upper=1700.0,
+            compression="none",
+            total_ion_current=500.0,
+            base_peak_mz=150.0,
+            base_peak_intensity=500.0,
+            precursor_mz=456.789,
+            **kwargs,  # type: ignore[arg-type]
+        )
+
+    def test_user_param_written_before_scan_list(self) -> None:
+        block = self._spectrum(precursor_group=43)
+        etree.fromstring(block)
+        text = block.decode()
+        assert '<userParam name="precursor group" value="43"/>' in text
+        assert text.index("precursor group") < text.index("<scanList")
+
+    def test_omitted_without_group(self) -> None:
+        assert b"precursor group" not in self._spectrum()
+
+
 # ===================================================================
 # Ion mobility — scan-level and array
 # ===================================================================

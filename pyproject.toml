@@ -1,6 +1,6 @@
 [project]
 name = "tdf2mzml"
-version = "0.6.1"
+version = "0.7.0"
 description = "Convert Bruker TimsTOF TDF files to indexed mzML"
 authors = [{name = "Michael A. Freitas", email = "mike.freitas@gmail.com"}]
 readme = "README.md"
@@ -47,7 +47,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-tdf2mzml = ["libs/*.so", "libs/*.dll", "libs/*.lib"]
+tdf2mzml = ["libs/*.so", "libs/*.dll", "libs/*.lib", "libs/THIRD-PARTY-LICENSE-README.txt"]
 
 # ---------------------------------------------------------------------------
 # mypy — strict mode

@@ -15,6 +15,14 @@ from typing import Any
 SQL_IN_CHUNK_SIZE: int = 500
 
 
+def table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    """Return True if a table or view called *name* exists.
+
+    Checked by name only: the SDK guide warns that some old tables are views in schema v5.
+    """
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE name=?", (name,)).fetchone() is not None
+
+
 def batched_in_query(
     conn: sqlite3.Connection,
     sql_template: str,

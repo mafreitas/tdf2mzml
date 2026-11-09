@@ -3,9 +3,9 @@
 :class:`ConversionConfig` is the single validated parameter object that flows
 through the entire conversion pipeline.  It is constructed from CLI arguments
 by :func:`~tdf2mzml.cli.parse_args` and validated with Pydantic, including
-auto-extraction of ``.zip`` archives and verification that the input directory
-contains a recognised Bruker analysis file (``analysis.tdf``, ``analysis.tsf``,
-or ``analysis.baf``).
+verification that the input contains a recognised Bruker analysis file
+(``analysis.tdf``, ``analysis.tsf``, or ``analysis.baf``) or is a ``.zip``
+archive, and that the output path is not the input path.
 """
 
 from pathlib import Path
@@ -17,7 +17,6 @@ from tdf2mzml.constants import (
     DEFAULT_END_FRAME,
     DEFAULT_MS1_THRESHOLD,
     DEFAULT_MS2_NLARGEST,
-    DEFAULT_MS2_THRESHOLD,
     DEFAULT_PRECISION,
     DEFAULT_START_FRAME,
 )
@@ -40,8 +39,9 @@ class ConversionConfig(BaseModel):
         How MS1 spectra are represented in the output.
     ms1_threshold : float
         Minimum intensity for raw-mode MS1 peak inclusion (≥ 0).
-    ms2_threshold : float
-        Minimum intensity for MS2 peak inclusion (≥ 0).
+    ms2_threshold : float or None
+        Minimum intensity for MS2 peak inclusion (≥ 0). ``None`` uses the
+        format default: no filtering for TDF, 10 for TSF and BAF.
     ms2_nlargest : int
         Retain only the N largest MS2 peaks per spectrum; ``-1`` keeps all.
     start_frame : int
@@ -78,8 +78,12 @@ class ConversionConfig(BaseModel):
     ms1_threshold: Annotated[float, Field(ge=0)] = Field(
         DEFAULT_MS1_THRESHOLD, description="Minimum intensity for raw MS1 peaks"
     )
-    ms2_threshold: Annotated[float, Field(ge=0)] = Field(
-        DEFAULT_MS2_THRESHOLD, description="Minimum intensity for MS2 peaks"
+    ms2_threshold: Annotated[float, Field(ge=0)] | None = Field(
+        None,
+        description=(
+            "Minimum intensity for MS2 peaks; None = format default "
+            "(TDF: no filtering, TSF and BAF: 10)"
+        ),
     )
     ms2_nlargest: int = Field(
         DEFAULT_MS2_NLARGEST, description="Keep N largest MS2 peaks; -1 keeps all"
@@ -117,32 +121,25 @@ class ConversionConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _resolve_input(self) -> "ConversionConfig":
-        """Auto-extract zipped .d directories and verify analysis.tdf exists.
+    def _output_differs_from_input(self) -> "ConversionConfig":
+        """Refuse an output path that is the input (the converter would overwrite it)."""
+        if self.output.resolve() == self.input.resolve():
+            raise ValueError(f"output '{self.output}' must not be the same path as the input")
+        return self
 
-        If *input* points to a ``.zip`` file (or a path ending in ``.d.zip``),
-        the archive is extracted to a temporary sibling directory and *input*
-        is updated to point at the extracted ``.d`` directory.
+    @model_validator(mode="after")
+    def _resolve_input(self) -> "ConversionConfig":
+        """Verify the input holds a Bruker analysis file.
+
+        A ``.zip`` archive is accepted as it is; ``tdf2mzml.cli.run_conversion``
+        extracts it to a temporary directory and removes that directory at the end.
         """
         import zipfile
 
         path = self.input
 
-        # Auto-extract .zip archives
         if path.suffix == ".zip" and zipfile.is_zipfile(path):
-            import tempfile
-
-            extract_dir = Path(tempfile.mkdtemp(prefix="tdf2mzml_"))
-            with zipfile.ZipFile(path) as zf:
-                zf.extractall(extract_dir)
-
-            # Find the .d directory inside the extracted contents
-            d_dirs = list(extract_dir.rglob("*.d"))
-            if not d_dirs:
-                raise ValueError(f"No .d directory found after extracting '{path}'")
-            # Use model_copy to update the immutable-ish field
-            object.__setattr__(self, "input", d_dirs[0])
-            path = self.input
+            return self
 
         # BAF: input may be a .baf file directly (standalone) or a .d directory
         if path.suffix == ".baf" and path.is_file():

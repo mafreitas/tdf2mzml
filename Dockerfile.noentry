@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 
 LABEL name="tdf2mzml"
-LABEL version="0.6.1"
-LABEL sdk_version="2.8.7"
+LABEL version="0.7.0"
+LABEL sdk_version="5.0.4"
 LABEL author="Michael A. Freitas"
 LABEL maintainer="mike.freitas@gmail.com"
 LABEL dockerhub="mfreitas/tdf2mzml"

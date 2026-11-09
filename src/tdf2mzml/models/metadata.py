@@ -110,7 +110,8 @@ class AcquisitionMetadata(BaseModel):
     total_spectra : int
         Total number of spectra that will be written to the output.
     has_pasef_dda : bool
-        True when at least one MsMsType=8 frame is present.
+        True when at least one MsMsType=8 frame or, in schema v5, at least one
+        precursor is present.
     has_pasef_dia : bool
         True when at least one MsMsType=9 frame is present.
     dia_windows : list[DiaWindow]
